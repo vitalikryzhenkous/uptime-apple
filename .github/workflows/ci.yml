@@ -4,18 +4,38 @@ on:
   push:
     branches: [main]
 
+# a newer push to the same branch/PR cancels the older run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  kit:
+    name: UptimeKit tests (strict concurrency + Thread Sanitizer)
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Xcode version
         run: xcodebuild -version
-      - name: UptimeKit tests
-        run: swift test --package-path UptimeKit
+      # every Sendable/actor-isolation problem in the shared package is an error, not a warning
+      - name: Tests, strict concurrency
+        run: >
+          swift test --package-path UptimeKit
+          -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      # data races in the SSE client and shared state show up here, not in the menu bar
+      - name: Tests, Thread Sanitizer
+        run: swift test --package-path UptimeKit --sanitize=thread
+
+  app:
+    name: Mac app build (unsigned)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
       - name: Generate the Xcode project
         run: brew install xcodegen && xcodegen generate
-      - name: Build the Mac app (unsigned)
+      - name: Build
         run: >
           xcodebuild -project Uptime.xcodeproj -scheme UptimeMac -configuration Debug
           -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
