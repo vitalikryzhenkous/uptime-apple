@@ -1,0 +1,24 @@
+{
+  "api": 1,
+  "ok": false,
+  "error": "KeyError: 'NOTION_TOKEN'",
+  "failed_at": "2026-11-03T17:21:14+01:00",
+  "persona": {"name": "Buddy"},
+  "nikolai": [
+    {"id": "mood:1", "kind": "mood", "key": "persona.calm.1", "vars": {}, "text": "…", "project": null, "buttons": [],
+     "mood": "calm", "scene": "none", "cold": false,
+     "look": {"pose": "sit", "overlays": [], "scene": "none", "mark": null, "anim": null, "glow": false},
+     "pet": {"food": 10, "fun": 0, "love": 0}}
+  ],
+  "claude": {"working": 0, "waiting": 0, "idle": 0, "open": 0, "streams": [],
+             "limits": {"ts": 1793722866, "h5": null, "d7": {"pct": 12.0, "reset": 1793998800}}},
+  "git": {},
+  "health": [],
+  "machine": {"cpu": 3, "ram": 40, "disk": 4, "load": 0.2, "cores": 6, "temp": null, "docker": 0},
+  "weather": null,
+  "quest": null,
+  "main_done": null,
+  "notifications": [],
+  "server_time": 1793722879.5,
+  "build": "dcebcb6e"
+}

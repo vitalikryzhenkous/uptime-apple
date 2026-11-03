@@ -1,0 +1,7 @@
+// Shared build settings. Personal signing values live in Local.xcconfig (git-ignored);
+// copy Local.xcconfig.example to Local.xcconfig and fill it in.
+
+UPTIME_BUNDLE_PREFIX = dev.uptime
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

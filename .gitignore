@@ -14,3 +14,7 @@ Package.resolved
 Config/Local.xcconfig
 
 .DS_Store
+
+# written by `xcodegen generate` from project.yml
+Apps/Mac/Info.plist
+Apps/Mac/UptimeMac.entitlements

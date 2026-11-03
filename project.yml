@@ -1,0 +1,64 @@
+# XcodeGen spec: `xcodegen generate` makes Uptime.xcodeproj (not committed).
+name: Uptime
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  UptimeKit:
+    path: UptimeKit
+
+targets:
+  UptimeMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Apps/Mac
+    dependencies:
+      - package: UptimeKit
+    info:
+      path: Apps/Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Uptime
+        CFBundleName: Uptime
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSUIElement: true            # menu-bar only: no Dock icon, no main window
+        NSHumanReadableCopyright: ""
+    entitlements:
+      path: Apps/Mac/UptimeMac.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+    settings:
+      base:
+        PRODUCT_NAME: Uptime
+        PRODUCT_BUNDLE_IDENTIFIER: $(UPTIME_BUNDLE_PREFIX).mac
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  UptimeMac:
+    build:
+      targets:
+        UptimeMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    archive:
+      config: Release
