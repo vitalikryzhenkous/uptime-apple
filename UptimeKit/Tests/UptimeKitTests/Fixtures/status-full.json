@@ -1,0 +1,74 @@
+{
+  "api": 1,
+  "ok": true,
+  "persona": {"name": "Buddy"},
+  "nikolai": [
+    {
+      "id": "mood:1993025", "kind": "mood", "key": "persona.hungry.1", "vars": {}, "project": null,
+      "text": "Миска пуста: ноль коммитов.",
+      "buttons": [],
+      "mood": "hungry", "scene": "dark", "cold": false,
+      "look": {"pose": "lie", "overlays": ["scarf"], "scene": "dark", "mark": "hungry", "anim": null, "glow": false},
+      "pet": {"food": 0, "fun": 40, "love": 75}
+    },
+    {
+      "id": "review:2026-11-03", "kind": "review", "key": "persona.review.offer", "vars": {"n": 3}, "project": "demo-api",
+      "text": "Итог дня готов.",
+      "buttons": [{"id": "open", "key": "persona.btn.open", "label": "Открыть", "log": false},
+                  {"id": "done", "key": "persona.btn.done", "label": "Готово", "log": true}]
+    }
+  ],
+  "claude": {
+    "working": 1, "waiting": 1, "idle": 0, "open": 0,
+    "limits": {"ts": 1793722866, "h5": {"pct": 5.0, "reset": 1793739600}, "d7": {"pct": 70.0, "reset": 1793998800}},
+    "streams": [
+      {
+        "project": "demo-api", "folder": "apps/demo-api", "id": null, "state": "working", "ask": null,
+        "since": 1793722812, "started": 1793721561, "remote": false, "host": "m920q-agent", "model": "Opus 5.5", "count": 1,
+        "doing": {"tool": "Bash", "what": "pytest", "ts": 1793722812},
+        "plan": {"done": 2, "total": 5, "now": "Write the client"},
+        "recent": [{"tool": "Bash", "what": "pytest", "ts": 1793722812}, {"tool": "Edit", "what": "app.py", "ts": 1793722700}],
+        "tasks": [{"subject": "Models", "status": "completed"}, {"subject": "Write the client", "status": "in_progress"}],
+        "ctx": {"pct": 13.0, "size": 1000000, "tokens": 129344, "limit": 100.0, "turns_left": 87},
+        "compact": {"ts": 1793721561, "trigger": "auto", "done": true},
+        "subs": [
+          {"id": "a6a38f358920cf319", "type": "Explore", "state": "working", "started": 1793716404, "ended": null,
+           "doing": {"tool": "Grep", "what": "fixtures", "ts": 1793716606}, "what": "Find fixtures"},
+          {"id": "b1c2d3e4f5a6b7c8d", "type": "verifier", "state": "done", "started": 1793716000, "ended": 1793716300,
+           "doing": null, "what": ""}
+        ]
+      },
+      {
+        "project": "demo-web", "folder": "apps/demo-web", "id": null, "state": "waiting", "ask": "permission",
+        "since": 1793722000, "started": 1793720000, "remote": true, "host": "mac", "model": "Sonnet 5.5", "count": 2,
+        "doing": null, "plan": null, "recent": [], "tasks": [],
+        "ctx": {"pct": 88.5, "size": 200000, "tokens": 177000, "limit": 92.0, "turns_left": 1},
+        "compact": null, "subs": []
+      }
+    ]
+  },
+  "git": {
+    "apps/demo-api": {"branch": "feat/client", "dirty": 3, "ahead": 1, "ci": "run",
+      "prs": [{"n": 12, "title": "feat: client", "branch": "feat/client", "draft": false, "checks": "ok"}]},
+    "apps/demo_web": {"branch": "main", "dirty": 0, "ahead": null, "ci": null, "prs": []}
+  },
+  "health": [
+    {"kind": "systemd", "name": "uptime-board", "ok": true, "detail": "active"},
+    {"kind": "https", "name": "demo:8443", "ok": false, "detail": "", "detail_key": "health.timeout", "detail_vars": {"s": 5}}
+  ],
+  "machine": {"cpu": 0, "ram": 85, "disk": 4, "load": 4.1, "cores": 6, "temp": null, "docker": 3},
+  "weather": {"temp": 9, "feels": 6, "wind": 6, "key": "weather.overcast", "text": "ПАСМУРНО", "group": "cloudy",
+              "day": false, "max": 10, "min": 6, "rain": 15},
+  "notifications": [
+    {"id": "done:demo-api:1793722475", "kind": "done", "title_key": "notify.done.title", "body_key": "notify.done.body",
+     "vars": {"who": "demo-api"}, "title": "demo-api: агент закончил ход", "body": "Проверь, что он сделал.",
+     "project": null, "ts": 1793722475},
+    {"id": "limit:d7:80:1793998800", "kind": "limit", "title_key": "notify.limit.title", "body_key": "notify.limit.body",
+     "vars": {"pct": 80, "window": "d7"}, "title": "Лимит недели 80 %", "body": "", "project": null, "ts": 1793722500},
+    {"id": "future:x", "kind": "something-new", "title_key": null, "body_key": null, "vars": {},
+     "title": "x", "body": "y", "project": null, "ts": 1793722600}
+  ],
+  "projects": [], "sessions": [], "daily": [],
+  "server_time": 1793722879.091534,
+  "build": "dcebcb6e"
+}

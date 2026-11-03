@@ -1,0 +1,21 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: UptimeKit tests
+        run: swift test --package-path UptimeKit
+      - name: Generate the Xcode project
+        run: brew install xcodegen && xcodegen generate
+      - name: Build the Mac app (unsigned)
+        run: >
+          xcodebuild -project Uptime.xcodeproj -scheme UptimeMac -configuration Debug
+          -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
