@@ -1,0 +1,16 @@
+# Xcode / XcodeGen output
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# local signing settings (Team ID)
+Config/Local.xcconfig
+
+.DS_Store
