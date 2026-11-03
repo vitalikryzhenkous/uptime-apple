@@ -73,8 +73,11 @@ public struct APIClient: StatusSource {
     }
 
     public func events() -> AsyncThrowingStream<ServerEvent, Error> {
-        var req = request("api/v1/events", accept: "text/event-stream")
-        req.timeoutInterval = ServerConfig.streamIdleTimeout // idle timeout between bytes = dead-stream watchdog
+        let req: URLRequest = {
+            var r = request("api/v1/events", accept: "text/event-stream")
+            r.timeoutInterval = ServerConfig.streamIdleTimeout // idle timeout between bytes = dead-stream watchdog
+            return r
+        }()
         let session = self.session
         return AsyncThrowingStream { continuation in
             let task = Task {
