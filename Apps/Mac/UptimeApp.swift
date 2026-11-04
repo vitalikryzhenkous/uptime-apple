@@ -1,35 +1,116 @@
 import SwiftUI
 import UptimeKit
 
-/// Menu-bar app skeleton. The API client, the panel (design "A on Mac"), Buddy and notifications
-/// come in the next PRs; for now it proves the target builds and links UptimeKit.
+/// Menu-bar app. The full panel (design "A on Mac"), Buddy and notifications come in the next PRs.
 @main
 struct UptimeApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var app
+
     var body: some Scene {
         MenuBarExtra {
             PanelView()
+                .environment(app.store)
         } label: {
-            Image(systemName: "cat")
+            MenuBarIcon(connection: app.store.connection)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .environment(app.store)
+        }
+    }
+}
+
+/// Owns the live store, so it connects at launch — not only when the panel is first opened.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let store = LiveStore(makeSource: Prefs.makeSource)
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        store.start()
+        // the stream is dead after sleep; reconnect at once instead of waiting for the idle timeout
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.store.start() }
+        }
+    }
+}
+
+struct MenuBarIcon: View {
+    let connection: ConnectionState
+
+    var body: some View {
+        Image(systemName: connection == .live ? "cat.fill" : "cat")
     }
 }
 
 struct PanelView: View {
+    @Environment(LiveStore.self) private var store
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Uptime")
-                .font(.headline)
-            Text("API v\(UptimeJSON.supportedAPI) · not connected yet")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("Uptime").font(.headline)
+            ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate)
+            if let s = store.status {
+                Text("Agents: \(s.streams.count)").font(.callout)
+                if let limits = s.claude?.limits {
+                    Text("5h \(percent(limits.h5?.pct)) · week \(percent(limits.d7?.pct))")
+                        .font(.callout.monospacedDigit())
+                }
+            }
             Divider()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .keyboardShortcut("q")
+            HStack {
+                SettingsLink { Text("Settings…") }
+                    .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
+                Spacer()
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                    .keyboardShortcut("q")
+            }
         }
         .padding(12)
         .frame(width: 360, alignment: .leading)
         .panelBackground()
+    }
+
+    private func percent(_ v: Double?) -> String {
+        v.map { "\(Int($0.rounded())) %" } ?? "—"
+    }
+}
+
+struct ConnectionLine: View {
+    let connection: ConnectionState
+    let lastUpdate: Date?
+
+    var body: some View {
+        Label(text, systemImage: icon)
+            .font(.caption)
+            .foregroundStyle(connection == .live ? Color.secondary : Color.orange)
+    }
+
+    // English placeholders until the board's /locales arrive (PR 4).
+    private var text: String {
+        switch connection {
+        case .idle: return "Not started"
+        case .noToken: return "No token — open Settings"
+        case .connecting: return "Connecting…"
+        case .live:
+            if let t = lastUpdate { return "Live · updated \(t.formatted(date: .omitted, time: .shortened))" }
+            return "Live"
+        case .retrying(let s, let reason): return "Offline (\(reason)) · retry in \(s) s"
+        case .unauthorized: return "Wrong token (401) — check Settings"
+        case .notConfigured: return "Server has no UPTIME_API_TOKEN (503)"
+        case .unsupportedAPI(let v): return "Server API v\(v) is newer — update the app"
+        }
+    }
+
+    private var icon: String {
+        switch connection {
+        case .live: return "dot.radiowaves.left.and.right"
+        case .connecting, .idle: return "ellipsis"
+        default: return "exclamationmark.triangle"
+        }
     }
 }
 
