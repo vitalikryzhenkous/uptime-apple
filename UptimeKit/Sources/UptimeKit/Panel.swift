@@ -31,15 +31,41 @@ public enum Panel {
         }
     }
 
-    /// How often the card's state strip pulses: quickly when the session needs you, calmly while it works,
-    /// not at all when idle or open.
+    /// How often the card's state strip pulses: only when the session needs you, and slowly (a faster or constant
+    /// pulse was distracting); working, idle and open are steady.
     public static func pulsePeriod(_ s: AgentStream) -> Double? {
-        switch s.stateKind {
-        case .waiting: return 1.4
-        case .working: return 2.8
-        default: return nil
+        s.stateKind == .waiting ? 3.2 : nil
+    }
+
+    // MARK: footer
+
+    /// SF Symbol for the board's weather (`key` from server/world.py's WMO map, `group` as the fallback).
+    public static func weatherSymbol(key: String?, group: String?, day: Bool) -> String {
+        switch key {
+        case "weather.clear": return day ? "sun.max.fill" : "moon.stars.fill"
+        case "weather.cloudy": return day ? "cloud.sun.fill" : "cloud.moon.fill"
+        case "weather.overcast": return "cloud.fill"
+        case "weather.fog": return "cloud.fog.fill"
+        case "weather.drizzle": return "cloud.drizzle.fill"
+        case "weather.ice_drizzle", "weather.ice_rain": return "cloud.sleet.fill"
+        case "weather.rain": return "cloud.rain.fill"
+        case "weather.shower": return "cloud.heavyrain.fill"
+        case "weather.snow", "weather.snowfall": return "cloud.snow.fill"
+        case "weather.storm": return "cloud.bolt.rain.fill"
+        default: break
+        }
+        switch group {
+        case "clear": return day ? "sun.max.fill" : "moon.stars.fill"
+        case "rain": return "cloud.rain.fill"
+        case "snow": return "cloud.snow.fill"
+        case "storm": return "cloud.bolt.rain.fill"
+        case "fog": return "cloud.fog.fill"
+        default: return "cloud.fill"
         }
     }
+
+    /// CPU / RAM of the M920q: yellow from 75 %, red from 90 %.
+    public static func machineLevel(_ pct: Double) -> Level { pct >= 90 ? .bad : pct >= 75 ? .warn : .ok }
 
     private static func rank(_ s: AgentStream) -> Int {
         switch s.stateKind {
