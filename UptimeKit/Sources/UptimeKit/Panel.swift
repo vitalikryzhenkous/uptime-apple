@@ -91,6 +91,75 @@ public enum Panel {
         }
     }
 
+    // MARK: limit resets
+
+    /// claude.ai Settings → Usage, where a granted limit reset is applied (support article "What is a limit reset";
+    /// the exact URL is not documented there — this is the settings page's path).
+    public static let usageSettingsURL = URL(string: "https://claude.ai/settings/usage")!
+
+    /// Point to the resets once either window is at 80 % or more (where the board's 5 h bar turns yellow).
+    public static func suggestsResets(_ l: Limits) -> Bool {
+        max(l.h5?.pct ?? 0, l.d7?.pct ?? 0) >= 80
+    }
+
+    // MARK: card
+
+    /// What the session waits for: "asks for Bash · git push --force" (the command only with the board's opt-in),
+    /// or the end of the agent's last reply (opt-in). `nil` when there is nothing to say.
+    public static func askLine(_ s: AgentStream, _ t: Strings) -> String? {
+        guard s.stateKind == .waiting || s.stateKind == .idle else { return nil }
+        if s.asksPermission {
+            var parts: [String] = []
+            if let tool = s.askTool?.tool, !tool.isEmpty {
+                parts.append(t.tr("app.ask.permission", ["tool": .string(tool)], fallback: "asks for \(tool)"))
+            }
+            if let text = s.askText, !text.isEmpty {
+                parts.append(text)
+            } else if let w = s.askTool?.what, !w.isEmpty {
+                parts.append(w)
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+        if let m = s.lastMsg, !m.isEmpty { return m }
+        return nil
+    }
+
+    public struct Progress: Equatable, Sendable {
+        public let done: Int
+        public let total: Int
+        public let step: String?
+        public var fraction: Double { total > 0 ? min(1, Double(done) / Double(total)) : 0 }
+    }
+
+    /// The agent's own plan (TodoWrite / Task tools): steps done of total and the current one.
+    public static func planProgress(_ s: AgentStream) -> Progress? {
+        guard let p = s.plan, let total = p.total, total > 0 else { return nil }
+        let step = (p.now ?? "").isEmpty ? nil : p.now
+        return Progress(done: min(p.done ?? 0, total), total: total, step: step)
+    }
+
+    /// Without a plan, the honest measure of a working turn: how long, and how many tool calls (newer boards).
+    public static func turnLine(_ s: AgentStream, now: Double, _ t: Strings) -> String? {
+        guard s.stateKind == .working, let start = s.since ?? s.started else { return nil }
+        var line = duration(now - start, t)
+        if let n = s.turnActions, n > 0 {
+            line += " · " + t.tp("app.actions", count: n, fallback: "{n} actions")
+        }
+        return line
+    }
+
+    /// The "copy connect command" text from the user's template: {folder} (relative to home) and {project}.
+    /// Only plain path characters are substituted, so a strange folder name cannot inject shell syntax.
+    public static func connectCommand(_ template: String, _ s: AgentStream) -> String? {
+        let tpl = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tpl.isEmpty else { return nil }
+        let safe = #"^[A-Za-z0-9_./~-]{1,120}$"#
+        let folder = s.folder ?? s.project
+        guard folder.range(of: safe, options: .regularExpression) != nil,
+              s.project.range(of: safe, options: .regularExpression) != nil else { return nil }
+        return tpl.replacingOccurrences(of: "{folder}", with: folder).replacingOccurrences(of: "{project}", with: s.project)
+    }
+
     /// Subagent dots only while one of them works; finished ones are in the expanded row.
     public static func showsSubDots(_ s: AgentStream) -> Bool {
         (s.subs ?? []).contains(where: \.isWorking)

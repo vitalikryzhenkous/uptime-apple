@@ -15,6 +15,12 @@ enum Prefs {
     }
 
     /// The user's language; `nil` = the board's default.
+    /// What the card's terminal button copies; {folder} and {project} are filled in. Empty = no button.
+    static var connectTemplate: String {
+        get { UserDefaults.standard.string(forKey: "connect") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "connect") }
+    }
+
     static var lang: String? {
         get { UserDefaults.standard.string(forKey: langKey).flatMap { Strings.isValidCode($0) ? $0 : nil } }
         set { UserDefaults.standard.set(newValue ?? "", forKey: langKey) }

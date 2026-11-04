@@ -71,16 +71,36 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
     public let ctx: ContextUse?
     public let compact: Compaction?
     public let subs: [Subagent]?
+    /// While it waits for a permission: the tool and its safe short form (`Bash` · `git push`).
+    public let askTool: Action?
+    /// Opt-in on the board (`share_text`): the start of the command the permission is for.
+    public let askText: String?
+    /// Opt-in on the board: the end of the agent's last reply (usually its question).
+    public let lastMsg: String?
+    /// Remote Control session id, when the session has one.
+    public let rc: String?
+    /// Tool calls in the current turn (newer boards).
+    public let turnActions: Int?
 
     enum CodingKeys: String, CodingKey {
         case project, folder, state, ask, since, started, doing, plan, recent, tasks, count, remote, host, model, ctx,
-             compact, subs
+             compact, subs, rc
         case sessionId = "id"
+        case askTool = "ask_tool"
+        case askText = "ask_text"
+        case lastMsg = "last_msg"
+        case turnActions = "turn_actions"
     }
 
     public var id: String { folder ?? project }
     public var stateKind: StreamState { StreamState(rawValue: state) ?? .unknown }
     public var asksPermission: Bool { ask == "permission" }
+
+    /// The session on claude.ai (Remote Control docs: the session URL is claude.ai/code/<id>).
+    public var claudeURL: URL? {
+        guard let rc, rc.range(of: #"^[A-Za-z0-9_-]{1,100}$"#, options: .regularExpression) != nil else { return nil }
+        return URL(string: "https://claude.ai/code/\(rc)")
+    }
 }
 
 public struct Action: Decodable, Sendable, Hashable {
@@ -160,9 +180,16 @@ public struct GitInfo: Decodable, Sendable {
     public let dirty: Int?
     public let ahead: Int?
     public let ci: String?
+    public let ciUrl: String?
     public let prs: [PullRequest]?
 
+    enum CodingKeys: String, CodingKey {
+        case branch, dirty, ahead, ci, prs
+        case ciUrl = "ci_url"
+    }
+
     public var ciState: CheckState? { ci.flatMap(CheckState.init(rawValue:)) }
+    public var ciLink: URL? { GitHubLink.url(ciUrl) }
 }
 
 public struct PullRequest: Decodable, Sendable, Identifiable {
@@ -171,9 +198,21 @@ public struct PullRequest: Decodable, Sendable, Identifiable {
     public let branch: String?
     public let draft: Bool?
     public let checks: String?
+    public let url: String?
 
     public var id: Int { n }
     public var checksState: CheckState? { checks.flatMap(CheckState.init(rawValue:)) }
+    public var link: URL? { GitHubLink.url(url) }
+}
+
+/// Only plain github.com PR / workflow-run links are opened (the server checks too; the app does not trust it blindly).
+public enum GitHubLink {
+    public static func url(_ text: String?) -> URL? {
+        guard let text,
+              text.range(of: #"^https://github\.com/[\w.-]+/[\w.-]+/(pull|actions/runs)/\d+$"#,
+                         options: .regularExpression) != nil else { return nil }
+        return URL(string: text)
+    }
 }
 
 public struct Health: Decodable, Sendable {

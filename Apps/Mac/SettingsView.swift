@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var token = ""
     @State private var hasToken = Prefs.tokens.read() != nil
     @State private var lang = Prefs.lang ?? ""
+    @State private var connect = Prefs.connectTemplate
     @State private var problem: String?
 
     var body: some View {
@@ -42,6 +43,18 @@ struct SettingsView: View {
             } footer: {
                 Text(s.tr("app.set.lang_help",
                           fallback: "Texts and the cat's lines come from the board's /locales, with your ~/.uptime/ext additions."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField(s.tr("app.set.connect", fallback: "Connect command"), text: $connect,
+                          prompt: Text("ssh m920q -t 'cd ~/{folder} && claude --continue'"))
+                    .font(.system(.body, design: .monospaced))
+                    .onChange(of: connect) { _, new in Prefs.connectTemplate = new }
+            } footer: {
+                Text(s.tr("app.set.connect_help",
+                          fallback: "What the card's button copies; {folder} is the session's folder, {project} its name."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
