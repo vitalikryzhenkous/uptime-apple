@@ -94,7 +94,7 @@ struct PanelView: View {
         } else {
             let list = VStack(spacing: 6) {
                 ForEach(rows) { r in
-                    SessionRow(stream: r, git: r.folder.flatMap { st.git?[$0] }, now: now,
+                    SessionRow(stream: r, git: st.gitInfo(for: r), now: now,
                                expanded: expanded.contains(r.id), t: t, s: s) {
                         if expanded.contains(r.id) { expanded.remove(r.id) } else { expanded.insert(r.id) }
                     }
