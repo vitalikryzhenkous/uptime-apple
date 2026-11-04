@@ -11,7 +11,7 @@ private struct FakeAssets: AssetSource {
 }
 
 private let extJSON = #"{"langs": [{"code": "en", "name": "English"}, {"code": "ru", "name": "Русский"}], "default_lang": "ru"}"#
-private let spritesJSON = #"{"size": [1, 1], "colors": {"o": "#000000"}, "classes": {}, "poses": {"sit": ["o"]}, "overlays": {}, "marks": {}}"#
+private let spritesJSON = ##"{"size": [1, 1], "colors": {"o": "#000000"}, "classes": {}, "poses": {"sit": ["o"]}, "overlays": {}, "marks": {}}"##
 
 final class AssetStoreTests: XCTestCase {
     private var dir: URL!
