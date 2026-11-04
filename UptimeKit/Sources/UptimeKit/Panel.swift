@@ -31,19 +31,20 @@ public enum Panel {
         }
     }
 
-    /// The card's light sweep (a soft band moving left → right, then a pause): `period` between sweeps, `strength`
-    /// the band's peak opacity. Noticeable but calm when the session needs you, fainter and rarer while it works,
-    /// none when idle or open (earlier strips that pulsed every 1.4–3.2 s were distracting).
+    /// The card's light sweep: a neutral sheen (no state colour — the card keeps its own) drifting left → right,
+    /// then a pause. `period` between sweeps, `strength` the band's peak opacity. A little more present when the
+    /// session needs you, barely there while it works, none when idle or open. (Coloured strips and tints that
+    /// pulsed every 1.4–4.5 s were distracting; the state's colour is in the state line's text instead.)
     public struct Shimmer: Equatable, Sendable {
         public let period: Double
         public let strength: Double
-        public static let sweep: Double = 1.6 // seconds the band takes to cross the card
+        public static let sweep: Double = 2.2 // seconds the band takes to cross the card
     }
 
     public static func shimmer(_ s: AgentStream) -> Shimmer? {
         switch s.stateKind {
-        case .waiting: return Shimmer(period: 4.5, strength: 0.22)
-        case .working: return Shimmer(period: 9, strength: 0.10)
+        case .waiting: return Shimmer(period: 5, strength: 0.10)
+        case .working: return Shimmer(period: 10, strength: 0.05)
         default: return nil
         }
     }
@@ -54,15 +55,6 @@ public enum Panel {
         guard local >= 0, local < Shimmer.sweep else { return nil }
         let x = local / Shimmer.sweep
         return x * x * (3 - 2 * x) // ease in and out
-    }
-
-    /// How strongly the card is tinted with its state colour (`Panel.dot`).
-    public static func tint(_ s: AgentStream) -> Double {
-        switch s.stateKind {
-        case .waiting: return 0.09
-        case .working: return 0.06
-        default: return 0
-        }
     }
 
     // MARK: footer
