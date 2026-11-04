@@ -4,6 +4,7 @@ import UptimeKit
 /// The menu-bar panel, design "A on Mac": Buddy, plan limits, sessions (who needs you first), machine and weather.
 struct PanelView: View {
     @Environment(LiveStore.self) private var store
+    @Environment(JumpRequest.self) private var jump
     @Environment(AssetStore.self) private var assets
     @Environment(\.colorScheme) private var scheme
     @State private var expanded: Set<String> = []
@@ -34,6 +35,9 @@ struct PanelView: View {
         .frame(width: 400, alignment: .leading)
         .foregroundStyle(t.fg)
         .panelBackground(t)
+        // the hotkey clicks the menu-bar button only while the panel is closed (a click would close it)
+        .onAppear { jump.panelOpen = true }
+        .onDisappear { jump.panelOpen = false }
     }
 
     // MARK: parts
@@ -251,6 +255,7 @@ struct SessionRow: View {
     let s: Strings
     let toggle: () -> Void
     @State private var showAll = false
+    @Environment(JumpRequest.self) private var jump
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -287,9 +292,6 @@ struct SessionRow: View {
                         .buttonStyle(.plain)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(t.b)
-                        .popover(isPresented: $showAll, arrowEdge: .leading) {
-                            AgentPopover(stream: stream, text: ask, now: now, t: t, s: s)
-                        }
                 }
             }
             progress
@@ -312,7 +314,20 @@ struct SessionRow: View {
             }
         }
         .clipShape(.rect(cornerRadius: 12))
+        .popover(isPresented: $showAll, arrowEdge: .leading) {
+            AgentPopover(stream: stream, text: Panel.askLine(stream, s) ?? Panel.stateLine(stream, now: now, s),
+                         now: now, t: t, s: s)
+                .environment(jump) // a popover is its own window: hand the request on explicitly
+        }
+        // the hotkey: a card without a reply field (a dialog, not in tmux) opens its popover
+        .onAppear(perform: takeJump)
+        .onChange(of: jump.nonce) { takeJump() }
         .accessibilityElement(children: .contain)
+    }
+
+    private func takeJump() {
+        guard Panel.popoverMode(stream) != .reply, jump.take(stream.id) else { return }
+        showAll = true
     }
 
     /// The agent's plan as a bar with the current step, or — without a plan — time and tool calls in this turn.
@@ -501,7 +516,7 @@ struct AgentPopover: View {
 
             switch Panel.popoverMode(stream) {
             case .reply:
-                ReplyBar(stream: stream, t: t, s: s)
+                ReplyBar(stream: stream, t: t, s: s, autofocus: true)
                 Text(s.tr("app.pop.hint", fallback: "Enter — send · Esc — close"))
                     .font(.system(size: 11)).foregroundStyle(t.g2)
             case .readOnly:
@@ -545,6 +560,10 @@ struct ReplyBar: View {
     let stream: AgentStream
     let t: Theme
     let s: Strings
+    /// In the popover: the field takes the focus at once.
+    var autofocus = false
+    @Environment(JumpRequest.self) private var jump
+    @FocusState private var focused: Bool
     @State private var draft = ""
     @State private var sending = false
     @State private var note: Note?
@@ -563,7 +582,10 @@ struct ReplyBar: View {
                     .padding(.vertical, 5)
                     .background(t.line.opacity(0.5), in: .rect(cornerRadius: 7))
                     .disabled(sending)
+                    .focused($focused)
                     .onSubmit { send(.reply(draft)) }
+                    .onAppear { if autofocus || jump.take(stream.id) { focused = true } }
+                    .onChange(of: jump.nonce) { if jump.take(stream.id) { focused = true } }
                     .onChange(of: draft) { _, new in if !new.isEmpty { note = nil } } // typing again hides "Sent"
                 Button { send(.reply(draft)) } label: {
                     Image(systemName: sending ? "ellipsis.circle" : "arrow.up.circle.fill").font(.system(size: 17))
