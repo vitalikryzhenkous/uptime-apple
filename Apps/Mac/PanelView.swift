@@ -231,7 +231,6 @@ struct SessionRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Button(action: toggle) {
                 HStack(spacing: 10) {
-                    Circle().fill(t.color(Panel.dot(stream))).frame(width: 10, height: 10)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(Panel.title(stream)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
                         Text(Panel.stateLine(stream, now: now, s)).font(.system(size: 12)).foregroundStyle(t.g2).lineLimit(1)
@@ -257,7 +256,6 @@ struct SessionRow: View {
                     .font(.system(size: 12, design: stream.asksPermission ? .monospaced : .default))
                     .foregroundStyle(stream.asksPermission ? t.color(.bad) : t.fg)
                     .lineLimit(2)
-                    .padding(.leading, 20)
                     .textSelection(.enabled)
             }
             progress
@@ -266,8 +264,14 @@ struct SessionRow: View {
             if expanded { details }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(t.card, in: .rect(cornerRadius: 12))
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(t.card)
+        .overlay(alignment: .top) {
+            StateStrip(color: t.color(Panel.dot(stream)), period: Panel.pulsePeriod(stream))
+        }
+        .clipShape(.rect(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
     }
 
     /// The agent's plan as a bar with the current step, or — without a plan — time and tool calls in this turn.
@@ -287,11 +291,10 @@ struct SessionRow: View {
                     Text(step).font(.system(size: 12)).foregroundStyle(t.g2).lineLimit(1)
                 }
             }
-            .padding(.leading, 20)
             .accessibilityElement(children: .combine)
         } else if let line = Panel.turnLine(stream, now: now, s), stream.ctx.map({ Panel.ctxLevel($0.pct) == .ok }) ?? true {
             // (with high context the state line already shows "≈N turns", keep the card short)
-            Text(line).font(.system(size: 12)).foregroundStyle(t.g2).padding(.leading, 20)
+            Text(line).font(.system(size: 12)).foregroundStyle(t.g2)
         }
     }
 
@@ -322,7 +325,6 @@ struct SessionRow: View {
                     }
                 }
             }
-            .padding(.leading, 20)
         }
     }
 
@@ -350,7 +352,6 @@ struct SessionRow: View {
             }
         }
         .font(.system(size: 12))
-        .padding(.leading, 20)
     }
 
     /// "Контекст занят на 72% · сжат в 14:05" (the compaction only within the last hour, like the board).
@@ -375,6 +376,37 @@ struct SessionRow: View {
             Text(k).foregroundStyle(t.g2)
             Text(v).lineLimit(2)
         }
+    }
+}
+
+/// The session's state as a thin line along the card's top edge, in the state's colour. While the session needs you
+/// or works, a glow spreads from the centre to both edges and fades, again and again (faster when it needs you).
+/// Still with Reduce Motion or when the state has no pulse.
+struct StateStrip: View {
+    let color: Color
+    let period: Double?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(color.opacity(period == nil ? 0.55 : 0.35))
+            if let period, !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
+                    let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+                    let eased = 1 - pow(1 - p, 3) // fast out of the centre, slow at the edges
+                    GeometryReader { g in
+                        Capsule()
+                            .fill(LinearGradient(colors: [color.opacity(0), color, color.opacity(0)],
+                                                 startPoint: .leading, endPoint: .trailing))
+                            .frame(width: max(8, g.size.width * eased * 1.2))
+                            .position(x: g.size.width / 2, y: g.size.height / 2)
+                            .opacity(1 - p * p)
+                    }
+                }
+            }
+        }
+        .frame(height: 3)
+        .accessibilityHidden(true)
     }
 }
 

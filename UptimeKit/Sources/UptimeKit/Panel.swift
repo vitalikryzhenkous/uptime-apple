@@ -31,6 +31,16 @@ public enum Panel {
         }
     }
 
+    /// How often the card's state strip pulses: quickly when the session needs you, calmly while it works,
+    /// not at all when idle or open.
+    public static func pulsePeriod(_ s: AgentStream) -> Double? {
+        switch s.stateKind {
+        case .waiting: return 1.4
+        case .working: return 2.8
+        default: return nil
+        }
+    }
+
     private static func rank(_ s: AgentStream) -> Int {
         switch s.stateKind {
         case .waiting: return s.asksPermission ? 0 : 1
