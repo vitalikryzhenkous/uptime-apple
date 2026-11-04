@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "note": "Synthetic 4x3 sprite set for tests (the real art lives in the private board repo).",
+  "size": [4, 3],
+  "colors": {"o": "#45475E", "e": "#50FA7B", "t": "#45475E", "T": "#45475E", "h": "#9C7A54", "x": "nothex"},
+  "classes": {"e": "eye", "t": "tailA", "T": "tailB"},
+  "poses": {
+    "sit": [".oo.", "oeeo", "ootT"],
+    "lie": ["....", "oooo", "oeot"]
+  },
+  "overlays": {
+    "hat": ["hhhh"],
+    "dot": ["....", ".x.."]
+  },
+  "marks": {"heart": [".#.#.", "#####"]}
+}

@@ -3,9 +3,12 @@ import UptimeKit
 
 struct SettingsView: View {
     @Environment(LiveStore.self) private var store
+    @Environment(AssetStore.self) private var assets
+    let refreshAssets: @MainActor () -> Void
     @State private var address = Prefs.baseURL.absoluteString
     @State private var token = ""
     @State private var hasToken = Prefs.tokens.read() != nil
+    @State private var lang = Prefs.lang ?? ""
     @State private var problem: String?
 
     var body: some View {
@@ -17,6 +20,23 @@ struct SettingsView: View {
             } footer: {
                 Text("The token is the UPTIME_API_TOKEN line in ~/apps/uptime-board/.env on the M920q. "
                      + "It is kept only in your Keychain.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker("Language", selection: $lang) {
+                    Text(defaultLangLabel).tag("")
+                    ForEach(assets.ext?.langs ?? []) { l in
+                        Text(l.name).tag(l.code)
+                    }
+                }
+                .onChange(of: lang) { _, new in
+                    Prefs.lang = new.isEmpty ? nil : new
+                    refreshAssets()
+                }
+            } footer: {
+                Text("Texts and Buddy's lines come from the board's /locales, including your ~/.uptime/ext additions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -41,6 +61,12 @@ struct SettingsView: View {
         .padding(.vertical, 8)
     }
 
+    private var defaultLangLabel: String {
+        let code = assets.ext?.defaultLang
+        let name = assets.ext?.langs.first { $0.code == code }?.name ?? code ?? "—"
+        return "Board default (\(name))"
+    }
+
     private func save() {
         guard let url = Prefs.validURL(address) else {
             problem = "The address must start with https://"
@@ -55,6 +81,7 @@ struct SettingsView: View {
             hasToken = Prefs.tokens.read() != nil
             problem = nil
             store.start()
+            refreshAssets()
         } catch {
             problem = "Could not save to the Keychain (\(error))"
         }

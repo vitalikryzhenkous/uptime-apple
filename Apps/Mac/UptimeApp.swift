@@ -1,7 +1,7 @@
 import SwiftUI
 import UptimeKit
 
-/// Menu-bar app. The full panel (design "A on Mac"), Buddy and notifications come in the next PRs.
+/// Menu-bar app. The full panel (design "A on Mac") and notifications come in the next PRs.
 @main
 struct UptimeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var app
@@ -10,30 +10,59 @@ struct UptimeApp: App {
         MenuBarExtra {
             PanelView()
                 .environment(app.store)
+                .environment(app.assets)
         } label: {
             MenuBarIcon(connection: app.store.connection)
         }
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView()
+            SettingsView(refreshAssets: app.refreshAssets)
                 .environment(app.store)
+                .environment(app.assets)
         }
     }
 }
 
-/// Owns the live store, so it connects at launch — not only when the panel is first opened.
+/// Owns the stores, so the app connects at launch — not only when the panel is first opened.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = LiveStore(makeSource: Prefs.makeSource)
+    /// Strings and sprites; drawn from the disk cache until the first refresh.
+    let assets = AssetStore(cache: .standard())
+    private var assetsBuild: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        watchBuild()
         // the stream is dead after sleep; reconnect at once instead of waiting for the idle timeout
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.store.start() }
+        }
+    }
+
+    /// Fetch locales, sprites and ext again (language change, new board build).
+    func refreshAssets() {
+        guard let client = Prefs.makeClient() else { return }
+        let assets = self.assets
+        Task { await assets.refresh(from: client, preferred: Prefs.lang) }
+    }
+
+    /// Refresh assets on the first status and whenever the board's build id changes (a deploy may change texts or art).
+    private func watchBuild() {
+        withObservationTracking {
+            _ = store.status?.build
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                if let build = self.store.status?.build, build != self.assetsBuild {
+                    self.assetsBuild = build
+                    self.refreshAssets()
+                }
+                self.watchBuild()
+            }
         }
     }
 }
@@ -48,6 +77,7 @@ struct MenuBarIcon: View {
 
 struct PanelView: View {
     @Environment(LiveStore.self) private var store
+    @Environment(AssetStore.self) private var assets
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -58,6 +88,20 @@ struct PanelView: View {
                 if let limits = s.claude?.limits {
                     Text("5h \(percent(limits.h5?.pct)) · week \(percent(limits.d7?.pct))")
                         .font(.callout.monospacedDigit())
+                }
+                if let cat = s.cat {
+                    Divider()
+                    HStack(alignment: .top, spacing: 10) {
+                        if let sprites = assets.sprites, let look = cat.look {
+                            BuddyView(sprites: sprites, look: look)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(assets.ext?.persona?.name ?? s.persona?.name ?? "Buddy").font(.caption.bold())
+                            Text(assets.strings.text(for: cat))
+                                .font(.callout)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
             Divider()
@@ -89,7 +133,7 @@ struct ConnectionLine: View {
             .foregroundStyle(connection == .live ? Color.secondary : Color.orange)
     }
 
-    // English placeholders until the board's /locales arrive (PR 4).
+    // English placeholders until the app's own strings join the board's locales (PR 4b).
     private var text: String {
         switch connection {
         case .idle: return "Not started"

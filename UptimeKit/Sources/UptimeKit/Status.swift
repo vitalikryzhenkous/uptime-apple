@@ -31,7 +31,7 @@ public struct Status: Decodable, Sendable {
     public var streams: [AgentStream] { claude?.streams ?? [] }
 }
 
-public struct Persona: Decodable, Sendable {
+public struct Persona: Decodable, Sendable, Equatable {
     public let name: String
 }
 
