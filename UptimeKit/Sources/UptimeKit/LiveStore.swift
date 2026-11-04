@@ -33,6 +33,11 @@ public final class LiveStore {
     public private(set) var status: Status?
     public private(set) var connection: ConnectionState = .idle
     public private(set) var lastUpdate: Date?
+    /// Server clock minus this Mac's clock, seconds — durations are counted on the server's clock, like the board.
+    public private(set) var clockOffset: Double = 0
+
+    /// "Now" on the server's clock (epoch seconds).
+    public func serverNow(_ date: Date = Date()) -> Double { date.timeIntervalSince1970 + clockOffset }
 
     @ObservationIgnored private var loop: Task<Void, Never>?
     private let makeSource: @Sendable () -> (any StatusSource)?
@@ -93,8 +98,10 @@ public final class LiveStore {
     }
 
     private func apply(_ s: Status) {
+        let now = Date()
         status = s
-        lastUpdate = Date()
+        lastUpdate = now
+        if let t = s.serverTime { clockOffset = t - now.timeIntervalSince1970 }
         connection = .live
     }
 }

@@ -4,6 +4,7 @@ import UptimeKit
 struct SettingsView: View {
     @Environment(LiveStore.self) private var store
     @Environment(AssetStore.self) private var assets
+    @Environment(\.colorScheme) private var scheme
     let refreshAssets: @MainActor () -> Void
     @State private var address = Prefs.baseURL.absoluteString
     @State private var token = ""
@@ -12,21 +13,24 @@ struct SettingsView: View {
     @State private var problem: String?
 
     var body: some View {
+        let s = assets.strings
         Form {
             Section {
-                TextField("Server", text: $address, prompt: Text(ServerConfig.defaultBaseURL.absoluteString))
-                SecureField("Token", text: $token,
-                            prompt: Text(hasToken ? "saved in Keychain — type to replace" : "UPTIME_API_TOKEN"))
+                TextField(s.tr("app.set.server", fallback: "Server"), text: $address,
+                          prompt: Text(ServerConfig.defaultBaseURL.absoluteString))
+                SecureField(s.tr("app.set.token", fallback: "Token"), text: $token,
+                            prompt: Text(hasToken ? s.tr("app.set.token_saved", fallback: "saved in Keychain — type to replace")
+                                                  : "UPTIME_API_TOKEN"))
             } footer: {
-                Text("The token is the UPTIME_API_TOKEN line in ~/apps/uptime-board/.env on the M920q. "
-                     + "It is kept only in your Keychain.")
+                Text(s.tr("app.set.token_help", fallback: "The token is the UPTIME_API_TOKEN line in ~/apps/uptime-board/.env "
+                          + "on the M920q. It is kept only in your Keychain."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section {
-                Picker("Language", selection: $lang) {
-                    Text(defaultLangLabel).tag("")
+                Picker(s.tr("app.set.lang", fallback: "Language"), selection: $lang) {
+                    Text(defaultLangLabel(s)).tag("")
                     ForEach(assets.ext?.langs ?? []) { l in
                         Text(l.name).tag(l.code)
                     }
@@ -36,7 +40,8 @@ struct SettingsView: View {
                     refreshAssets()
                 }
             } footer: {
-                Text("Texts and Buddy's lines come from the board's /locales, including your ~/.uptime/ext additions.")
+                Text(s.tr("app.set.lang_help",
+                          fallback: "Texts and the cat's lines come from the board's /locales, with your ~/.uptime/ext additions."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -44,32 +49,33 @@ struct SettingsView: View {
             if let problem {
                 Text(problem).foregroundStyle(.red).font(.callout)
             }
-            ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate)
+            ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: Theme.of(scheme))
 
             HStack {
                 if hasToken {
-                    Button("Remove token", role: .destructive, action: removeToken)
+                    Button(s.tr("app.set.remove", fallback: "Remove token"), role: .destructive, action: removeToken)
                 }
                 Spacer()
-                Button("Reconnect") { store.start() }
-                Button("Save", action: save)
+                Button(s.tr("app.reconnect", fallback: "Reconnect")) { store.start() }
+                Button(s.tr("app.set.save", fallback: "Save"), action: save)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460)
+        .frame(width: 480)
         .padding(.vertical, 8)
     }
 
-    private var defaultLangLabel: String {
+    private func defaultLangLabel(_ s: Strings) -> String {
         let code = assets.ext?.defaultLang
         let name = assets.ext?.langs.first { $0.code == code }?.name ?? code ?? "—"
-        return "Board default (\(name))"
+        return s.tr("app.set.lang_default", ["name": .string(name)], fallback: "Board default (\(name))")
     }
 
     private func save() {
+        let s = assets.strings
         guard let url = Prefs.validURL(address) else {
-            problem = "The address must start with https://"
+            problem = s.tr("app.set.https", fallback: "The address must start with https://")
             return
         }
         do {
@@ -83,18 +89,21 @@ struct SettingsView: View {
             store.start()
             refreshAssets()
         } catch {
-            problem = "Could not save to the Keychain (\(error))"
+            problem = s.tr("app.set.keychain_error", ["error": .string("\(error)")],
+                           fallback: "Could not write to the Keychain (\(error))")
         }
     }
 
     private func removeToken() {
+        let s = assets.strings
         do {
             try Prefs.tokens.write(nil)
             hasToken = false
             problem = nil
             store.start() // → "No token"
         } catch {
-            problem = "Could not remove from the Keychain (\(error))"
+            problem = s.tr("app.set.keychain_error", ["error": .string("\(error)")],
+                           fallback: "Could not write to the Keychain (\(error))")
         }
     }
 }
