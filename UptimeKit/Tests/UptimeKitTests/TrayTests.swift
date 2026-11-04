@@ -3,7 +3,7 @@ import XCTest
 
 final class TrayTests: XCTestCase {
     private func streams(_ json: String) throws -> [AgentStream] {
-        try UptimeJSON.status(from: Data(#"{"api": 1, "claude": {"streams": "#.utf8 + Data(json.utf8) + Data("}}".utf8)).streams
+        try UptimeJSON.status(from: Data((#"{"api": 1, "claude": {"streams": "# + json + "}}").utf8)).streams
     }
 
     func testMoodPicksWhatNeedsYouMost() throws {
