@@ -89,10 +89,14 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
     public let rc: String?
     /// Tool calls in the current turn (newer boards).
     public let turnActions: Int?
+    /// The hook's short session id: where `POST …/input` goes.
+    public let session: String?
+    /// The tmux pane the session runs in on the board's machine (v1 only); set = the card can reply.
+    public let pane: String?
 
     enum CodingKeys: String, CodingKey {
         case project, folder, state, ask, since, started, doing, plan, recent, tasks, count, remote, host, model, ctx,
-             compact, subs, rc
+             compact, subs, rc, session, pane
         case sessionId = "id"
         case askTool = "ask_tool"
         case askText = "ask_text"

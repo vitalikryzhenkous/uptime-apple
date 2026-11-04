@@ -309,6 +309,9 @@ struct SessionRow: View {
                     .textSelection(.enabled)
             }
             progress
+            if Panel.canReply(stream) {
+                ReplyBar(stream: stream, t: t, s: s)
+            }
             actions
 
             if expanded { details }
@@ -429,6 +432,83 @@ struct SessionRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(k).foregroundStyle(t.g2)
             Text(v).lineLimit(2)
+        }
+    }
+}
+
+/// A one-line reply to the waiting agent — and /compact once the context is ≥70 % full. The board types it into
+/// the session's tmux pane (`POST /api/v1/sessions/<id>/input`); it checks the rules again and refuses with a reason.
+struct ReplyBar: View {
+    let stream: AgentStream
+    let t: Theme
+    let s: Strings
+    @State private var draft = ""
+    @State private var sending = false
+    @State private var note: Note?
+
+    struct Note: Equatable { let text: String; let ok: Bool }
+
+    private var problem: AgentInput.Problem? { AgentInput.problem(draft) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                TextField(s.tr("app.reply.placeholder", fallback: "Reply to the agent…"), text: $draft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(t.line.opacity(0.5), in: .rect(cornerRadius: 7))
+                    .disabled(sending)
+                    .onSubmit { send(.reply(draft)) }
+                    .onChange(of: draft) { _, new in if !new.isEmpty { note = nil } } // typing again hides "Sent"
+                Button { send(.reply(draft)) } label: {
+                    Image(systemName: sending ? "ellipsis.circle" : "arrow.up.circle.fill").font(.system(size: 17))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(problem == nil && !sending ? t.b : t.g2)
+                .disabled(problem != nil || sending)
+                .help(s.tr("app.reply.send", fallback: "Send to the agent"))
+                .accessibilityLabel(s.tr("app.reply.send", fallback: "Send to the agent"))
+                if Panel.offersCompact(stream) {
+                    Button { send(.compact) } label: {
+                        Text("/compact").font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .overlay(Capsule().stroke(t.color(.warn).opacity(0.7)))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(t.color(.warn))
+                    .disabled(sending)
+                    .help(s.tr("app.reply.compact_help", fallback: "Compact the context: sends /compact"))
+                }
+            }
+            if let note {
+                Text(note.text).font(.system(size: 11)).foregroundStyle(note.ok ? t.gr : t.color(.bad)).lineLimit(1)
+            } else if let p = problem, p != .empty {
+                Text(Panel.inputErrorText(p.rawValue, s)).font(.system(size: 11)).foregroundStyle(t.g2).lineLimit(1)
+            }
+        }
+    }
+
+    private func send(_ input: AgentInput) {
+        if case .reply = input, problem != nil { return }
+        guard let id = stream.session, let client = Prefs.makeClient(), !sending else { return }
+        sending = true
+        note = nil
+        Task { @MainActor in
+            defer { sending = false }
+            do {
+                switch try await client.send(input, to: id) {
+                case .sent:
+                    if case .reply = input { draft = "" }
+                    note = Note(text: s.tr("app.reply.sent", fallback: "Sent"), ok: true)
+                case .refused(let code):
+                    note = Note(text: Panel.inputErrorText(code, s), ok: false)
+                }
+            } catch {
+                note = Note(text: Panel.inputErrorText("network", s), ok: false)
+            }
         }
     }
 }
