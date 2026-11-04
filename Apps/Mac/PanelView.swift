@@ -279,7 +279,11 @@ struct SessionRow: View {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(Panel.title(stream)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
-                        Text(Panel.stateLine(stream, now: now, s)).font(.system(size: 12)).foregroundStyle(t.g2).lineLimit(1)
+                        // the state's colour lives in its words: yellow waiting, red permission, green working
+                        Text(Panel.stateLine(stream, now: now, s))
+                            .font(.system(size: 12, weight: Panel.dot(stream) == .muted ? .regular : .medium))
+                            .foregroundStyle(Panel.dot(stream) == .muted ? t.g2 : t.color(Panel.dot(stream)))
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 4)
                     if Panel.showsSubDots(stream) {
@@ -312,12 +316,11 @@ struct SessionRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background {
-            let color = t.color(Panel.dot(stream))
+            // the card keeps its own colour; a calm neutral sheen (the theme's text colour, very faint) drifts across
             ZStack {
                 t.card
-                color.opacity(Panel.tint(stream))
                 if let sh = Panel.shimmer(stream) {
-                    LightSweep(color: color, shimmer: sh)
+                    LightSweep(color: t.fg, shimmer: sh)
                 }
             }
         }
