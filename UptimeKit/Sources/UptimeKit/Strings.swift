@@ -33,13 +33,14 @@ public struct Strings: Sendable, Equatable {
         return Self.fill(template, vars)
     }
 
-    /// Plural form of `key` for `count`; `{n}` is the count.
-    public func tp(_ key: String, count: Int, _ vars: [String: JSONValue] = [:]) -> String {
+    /// Plural form of `key` for `count`; `{n}` is the count. `fallback` is a template used when the
+    /// board has no form of this key at all (an older board without the app's strings).
+    public func tp(_ key: String, count: Int, _ vars: [String: JSONValue] = [:], fallback: String? = nil) -> String {
         let form = Self.pluralForm(lang: lang, count: count)
         let full = table[key + "." + form] != nil ? key + "." + form : key + ".other"
         var v = vars
         v["n"] = .number(Double(count))
-        return tr(full, v)
+        return tr(full, v, fallback: fallback.map { Self.fill($0, v) })
     }
 
     /// CLDR plural category for integers, as board.js computes it without Intl.
