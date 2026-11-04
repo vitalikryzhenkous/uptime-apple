@@ -15,6 +15,8 @@ public struct Status: Decodable, Sendable {
     public let machine: Machine?
     public let weather: Weather?
     public let notifications: [AppNotification]?
+    /// Open permission requests (the board's opt-in `remote_approve`; empty or missing without it).
+    public let permissions: [PermissionRequest]?
     public let serverTime: Double?
     public let build: String?
     /// `false` with `error` when the Notion snapshot failed; the live parts are still valid.
@@ -22,7 +24,7 @@ public struct Status: Decodable, Sendable {
     public let error: String?
 
     enum CodingKeys: String, CodingKey {
-        case api, persona, nikolai, claude, git, health, machine, weather, notifications, build, ok, error
+        case api, persona, nikolai, claude, git, health, machine, weather, notifications, permissions, build, ok, error
         case serverTime = "server_time"
     }
 
