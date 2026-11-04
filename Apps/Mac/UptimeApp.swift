@@ -12,7 +12,7 @@ struct UptimeApp: App {
                 .environment(app.store)
                 .environment(app.assets)
         } label: {
-            MenuBarIcon(connection: app.store.connection, streams: app.store.status?.streams ?? [])
+            MenuBarIcon(store: app.store, sprites: app.assets.sprites)
         }
         .menuBarExtraStyle(.window)
 
@@ -67,19 +67,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The cat in the menu bar; with the number of sessions waiting for you next to it.
+/// Buddy in the menu bar (his silhouette from /sprites.json, a template image so it follows the menu bar's colour),
+/// faded while offline; the number of sessions waiting for you next to him, with "!" when one asks for a permission.
 struct MenuBarIcon: View {
-    let connection: ConnectionState
-    let streams: [AgentStream]
+    let store: LiveStore
+    let sprites: Sprites?
 
     var body: some View {
+        let streams = store.status?.streams ?? []
+        let offline = Panel.showsOffline(store.connection, offlineSince: store.offlineSince,
+                                         hasData: store.status != nil, now: Date())
         let waiting = Panel.waitingCount(streams)
         let ask = streams.contains { $0.asksPermission }
-        HStack(spacing: 2) {
-            Image(systemName: connection != .live ? "cat" : ask ? "exclamationmark.bubble.fill" : "cat.fill")
-            if connection == .live, waiting > 0 {
-                Text("\(waiting)").monospacedDigit()
+        HStack(spacing: 3) {
+            if let sprites {
+                Image(nsImage: BuddyGlyph.image(sprites, alpha: offline ? 0.4 : 1))
+            } else {
+                Image(systemName: "cat")
+            }
+            if !offline, waiting > 0 {
+                Text(ask ? "\(waiting)!" : "\(waiting)").monospacedDigit()
             }
         }
+    }
+}
+
+enum BuddyGlyph {
+    /// 1 pt per sprite pixel: 14×14 pt, crisp at 2× (each pixel is 2×2 device pixels).
+    static func image(_ sprites: Sprites, alpha: CGFloat) -> NSImage {
+        let pixels = sprites.silhouette()
+        let image = NSImage(size: NSSize(width: sprites.width, height: sprites.height), flipped: true) { _ in
+            NSColor.black.withAlphaComponent(alpha).setFill()
+            for p in pixels { NSRect(x: p.x, y: p.y, width: 1, height: 1).fill() }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Uptime"
+        return image
     }
 }

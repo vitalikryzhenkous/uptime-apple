@@ -11,10 +11,11 @@ struct Theme {
         fg: Color(hex: "#F8F8F2"), g2: Color(hex: "#C5C8D6"), y: Color(hex: "#F1FA8C"), gr: Color(hex: "#50FA7B"),
         b: Color(hex: "#BD93F9"), r: Color(hex: "#FF6E6E"), on: Color(hex: "#21222C"))
 
+    /// Neutral white (not the board's cream Alucard): grey cards, accents that pass AA on white.
     static let light = Theme(
-        glass: Color(hex: "#FFFBEB", opacity: 0.94), card: Color(hex: "#CFCFDE", opacity: 0.45), line: Color(hex: "#CFCFDE"),
-        fg: Color(hex: "#1F1F1F"), g2: Color(hex: "#3C3A2E"), y: Color(hex: "#6E5A0C"), gr: Color(hex: "#14710A"),
-        b: Color(hex: "#644AC9"), r: Color(hex: "#B8321F"), on: Color(hex: "#FFFBEB"))
+        glass: Color(hex: "#FFFFFF", opacity: 0.92), card: Color(hex: "#000000", opacity: 0.05), line: Color(hex: "#D0D7DE"),
+        fg: Color(hex: "#1F2328"), g2: Color(hex: "#59636E"), y: Color(hex: "#875B00"), gr: Color(hex: "#1A7F37"),
+        b: Color(hex: "#8250DF"), r: Color(hex: "#CF222E"), on: Color(hex: "#FFFFFF"))
 
     static func of(_ scheme: ColorScheme) -> Theme { scheme == .dark ? dark : light }
 

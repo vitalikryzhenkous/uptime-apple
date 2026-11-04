@@ -50,6 +50,10 @@ struct SettingsView: View {
                 Text(problem).foregroundStyle(.red).font(.callout)
             }
             ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: Theme.of(scheme))
+            if store.drops > 0 {
+                // diagnostics for the frequent "-1005": how often the stream dropped since launch, and why
+                Text(dropsText(s)).font(.caption).foregroundStyle(.secondary)
+            }
 
             HStack {
                 if hasToken {
@@ -64,6 +68,13 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 480)
         .padding(.vertical, 8)
+    }
+
+    private func dropsText(_ s: Strings) -> String {
+        let time = store.lastErrorAt?.formatted(date: .omitted, time: .shortened) ?? "—"
+        let reason = store.lastError ?? "—"
+        return s.tr("app.set.drops", ["n": .number(Double(store.drops)), "reason": .string(reason), "time": .string(time)],
+                    fallback: "Connection drops since launch: \(store.drops) · last: \(reason) at \(time)")
     }
 
     private func defaultLangLabel(_ s: Strings) -> String {
