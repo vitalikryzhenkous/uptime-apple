@@ -139,15 +139,15 @@ public enum Panel {
         }
     }
 
-    // MARK: limit resets
+    // MARK: limits
 
-    /// claude.ai Settings → Usage, where a granted limit reset is applied (support article "What is a limit reset";
-    /// the exact URL is not documented there — this is the settings page's path).
-    public static let usageSettingsURL = URL(string: "https://claude.ai/settings/usage")!
-
-    /// Point to the resets once either window is at 80 % or more (where the board's 5 h bar turns yellow).
-    public static func suggestsResets(_ l: Limits) -> Bool {
-        max(l.h5?.pct ?? 0, l.d7?.pct ?? 0) >= 80
+    /// When a limit window resets, shown next to its own bar: "46 min", "3 h 10 min" within a day,
+    /// else the weekday and time in the board's language ("Mon 14:00"). `nil` without a future reset.
+    public static func resetText(_ reset: Double?, now: Double, _ t: Strings) -> String? {
+        guard let reset, reset > now else { return nil }
+        if reset - now < 86_400 { return duration(reset - now, t) }
+        return Date(timeIntervalSince1970: reset)
+            .formatted(.dateTime.weekday(.abbreviated).hour().minute().locale(Locale(identifier: t.lang)))
     }
 
     // MARK: card

@@ -198,32 +198,15 @@ struct LimitsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // each window's reset sits on its own row, so "46 min" can't be read as the week's
             if let h5 = limits.h5 {
-                bar(s.tr("app.limit.h5", fallback: "5 h"), pct: h5.pct, level: Panel.h5Level(h5.pct))
+                bar(s.tr("app.limit.h5", fallback: "5 h"), pct: h5.pct, level: Panel.h5Level(h5.pct), reset: h5.reset)
             }
             if let d7 = limits.d7, Panel.weekIsBig(d7.pct) {
-                bar(s.tr("app.limit.week", fallback: "week"), pct: d7.pct, level: Panel.weekLevel(d7.pct))
-            }
-            let sub = subline
-            HStack {
-                if !sub.isEmpty {
-                    Text(sub).font(.system(size: 12)).foregroundStyle(t.g2)
-                }
-                Spacer(minLength: 0)
-                // Limit resets are granted by Anthropic now and then and applied only in Settings → Usage on the web
-                // or Claude Desktop; Claude Code can't see or apply them, so near the limit we just point there.
-                if Panel.suggestsResets(limits) {
-                    Button {
-                        NSWorkspace.shared.open(Panel.usageSettingsURL)
-                    } label: {
-                        Label(s.tr("app.limit.resets", fallback: "Limit resets…"), systemImage: "arrow.counterclockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(t.b)
-                    }
-                    .buttonStyle(.plain)
-                    .help(s.tr("app.limit.resets_help",
-                               fallback: "Opens Settings → Usage on claude.ai: a free limit reset, if you have one, is applied there."))
-                }
+                bar(s.tr("app.limit.week", fallback: "week"), pct: d7.pct, level: Panel.weekLevel(d7.pct), reset: d7.reset)
+            } else if let d7 = limits.d7 {
+                Text("\(s.tr("app.limit.week", fallback: "week")) \(Int(d7.pct.rounded()))%")
+                    .font(.system(size: 12)).foregroundStyle(t.g2)
             }
         }
         .padding(.horizontal, 12)
@@ -232,20 +215,9 @@ struct LimitsCard: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var subline: String {
-        var parts: [String] = []
-        if let reset = limits.h5?.reset, reset > now {
-            let left = Panel.duration(reset - now, s)
-            parts.append(s.tr("app.limit.reset_in", ["t": .string(left)], fallback: "resets in \(left)"))
-        }
-        if let d7 = limits.d7, !Panel.weekIsBig(d7.pct) {
-            parts.append("\(s.tr("app.limit.week", fallback: "week")) \(Int(d7.pct.rounded()))%")
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    private func bar(_ label: String, pct: Double, level: Level) -> some View {
-        HStack(spacing: 8) {
+    private func bar(_ label: String, pct: Double, level: Level, reset: Double?) -> some View {
+        let left = Panel.resetText(reset, now: now, s)
+        return HStack(spacing: 8) {
             Text(label).fontWeight(.semibold).frame(width: 52, alignment: .leading)
             GeometryReader { g in
                 ZStack(alignment: .leading) {
@@ -258,6 +230,12 @@ struct LimitsCard: View {
                 .font(.system(size: 13, weight: .bold, design: .monospaced))
                 .foregroundStyle(level == .ok ? t.fg : t.color(level))
                 .frame(width: 44, alignment: .trailing)
+            Text(left ?? "")
+                .font(.system(size: 11))
+                .foregroundStyle(t.g2)
+                .lineLimit(1)
+                .frame(width: 66, alignment: .trailing)
+                .help(left.map { s.tr("app.limit.reset_in", ["t": .string($0)], fallback: "resets in \($0)") } ?? "")
         }
     }
 }
