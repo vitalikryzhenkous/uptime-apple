@@ -31,10 +31,38 @@ public enum Panel {
         }
     }
 
-    /// How often the card's state strip pulses: only when the session needs you, and slowly (a faster or constant
-    /// pulse was distracting); working, idle and open are steady.
-    public static func pulsePeriod(_ s: AgentStream) -> Double? {
-        s.stateKind == .waiting ? 3.2 : nil
+    /// The card's light sweep (a soft band moving left → right, then a pause): `period` between sweeps, `strength`
+    /// the band's peak opacity. Noticeable but calm when the session needs you, fainter and rarer while it works,
+    /// none when idle or open (earlier strips that pulsed every 1.4–3.2 s were distracting).
+    public struct Shimmer: Equatable, Sendable {
+        public let period: Double
+        public let strength: Double
+        public static let sweep: Double = 1.6 // seconds the band takes to cross the card
+    }
+
+    public static func shimmer(_ s: AgentStream) -> Shimmer? {
+        switch s.stateKind {
+        case .waiting: return Shimmer(period: 4.5, strength: 0.22)
+        case .working: return Shimmer(period: 9, strength: 0.10)
+        default: return nil
+        }
+    }
+
+    /// Where the band is at time `t` (0…1 across the card), or nil during the pause between sweeps.
+    public static func shimmerPosition(_ sh: Shimmer, at t: Double) -> Double? {
+        let local = t.truncatingRemainder(dividingBy: sh.period)
+        guard local >= 0, local < Shimmer.sweep else { return nil }
+        let x = local / Shimmer.sweep
+        return x * x * (3 - 2 * x) // ease in and out
+    }
+
+    /// How strongly the card is tinted with its state colour (`Panel.dot`).
+    public static func tint(_ s: AgentStream) -> Double {
+        switch s.stateKind {
+        case .waiting: return 0.09
+        case .working: return 0.06
+        default: return 0
+        }
     }
 
     // MARK: footer
