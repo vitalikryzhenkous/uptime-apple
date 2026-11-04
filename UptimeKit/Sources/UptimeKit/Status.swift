@@ -87,6 +87,8 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
     public let lastMsg: String?
     /// Remote Control session id, when the session has one.
     public let rc: String?
+    /// Opt-in on the board: while it asks a question, the option labels (picked in the terminal).
+    public let askOptions: [String]?
     /// Tool calls in the current turn (newer boards).
     public let turnActions: Int?
     /// The hook's short session id: where `POST …/input` goes.
@@ -100,6 +102,7 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
         case sessionId = "id"
         case askTool = "ask_tool"
         case askText = "ask_text"
+        case askOptions = "ask_options"
         case lastMsg = "last_msg"
         case turnActions = "turn_actions"
     }

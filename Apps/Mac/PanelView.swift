@@ -250,6 +250,7 @@ struct SessionRow: View {
     let t: Theme
     let s: Strings
     let toggle: () -> Void
+    @State private var showAll = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -281,6 +282,15 @@ struct SessionRow: View {
             // what it waits for: the permission's tool (+ command, opt-in) or the agent's question (opt-in)
             if let ask = Panel.askLine(stream, s) {
                 AgentText(text: ask, command: stream.asksPermission, t: t)
+                if Panel.showsAll(stream, text: ask) {
+                    Button(s.tr("app.pop.show_all", fallback: "Show all ›")) { showAll = true }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(t.b)
+                        .popover(isPresented: $showAll, arrowEdge: .leading) {
+                            AgentPopover(stream: stream, text: ask, now: now, t: t, s: s)
+                        }
+                }
             }
             progress
             if Panel.canReply(stream) {
@@ -411,23 +421,121 @@ struct SessionRow: View {
 }
 
 /// What the agent waits for: the permission's command (red, monospaced), its question, or the end of its reply —
-/// three lines, a click shows all of it (the board sends up to 600 characters with the share_text opt-in).
+/// always three lines, so the card never grows over its neighbours; "Show all ›" opens `AgentPopover`.
 struct AgentText: View {
     let text: String
     let command: Bool
     let t: Theme
-    @State private var open = false
 
     var body: some View {
         Text(text)
             .font(.system(size: 12, design: command ? .monospaced : .default))
             .foregroundStyle(command ? t.color(.bad) : t.fg)
-            .lineLimit(open ? nil : 3)
-            .fixedSize(horizontal: false, vertical: true)
+            .lineLimit(3)
+            .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
-            .onTapGesture { open.toggle() }
-            .textSelection(.enabled)
+    }
+}
+
+/// The agent's whole text beside the panel (up to 600 characters, paragraphs kept), scrollable and selectable;
+/// under it the reply field — or, while a dialog is open, the question's options to read and a way to the terminal.
+struct AgentPopover: View {
+    let stream: AgentStream
+    let text: String
+    let now: Double
+    let t: Theme
+    let s: Strings
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stream.project).font(.system(size: 15, weight: .bold))
+                    Text(Panel.stateLine(stream, now: now, s))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(t.color(Panel.dot(stream)))
+                }
+                Spacer(minLength: 0)
+                Button(copied ? s.tr("app.pop.copied", fallback: "Copied") : s.tr("app.pop.copy", fallback: "Copy")) {
+                    copy(text)
+                    copied = true
+                }
+                .controlSize(.small)
+                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)) }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(t.g2)
+                    .frame(width: 22, height: 22)
+                    .help(s.tr("app.pop.close", fallback: "Close"))
+                    .accessibilityLabel(s.tr("app.pop.close", fallback: "Close"))
+            }
+
+            ScrollView {
+                Text(text)
+                    .font(.system(size: 13, design: stream.asksPermission ? .monospaced : .default))
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .frame(maxHeight: 280)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(t.line.opacity(0.35), in: .rect(cornerRadius: 10))
+
+            let options = Panel.questionOptions(stream)
+            if !options.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(s.tr("app.pop.options", fallback: "Options (pick in the terminal)"))
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(t.g2)
+                    ForEach(Array(options.enumerated()), id: \.offset) { i, label in
+                        Text("\(i + 1) · \(label)")
+                            .font(.system(size: 12))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(t.line))
+                    }
+                }
+            }
+
+            switch Panel.popoverMode(stream) {
+            case .reply:
+                ReplyBar(stream: stream, t: t, s: s)
+                Text(s.tr("app.pop.hint", fallback: "Enter — send · Esc — close"))
+                    .font(.system(size: 11)).foregroundStyle(t.g2)
+            case .readOnly:
+                HStack(alignment: .center, spacing: 8) {
+                    Text(s.tr("app.pop.locked",
+                              fallback: "Replying from the panel is off: in an open dialog a typed digit would pick an option."))
+                        .font(.system(size: 12)).foregroundStyle(t.g2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    if let cmd = Panel.connectCommand(Prefs.connectTemplate, stream) {
+                        Button(s.tr("app.pop.open_terminal", fallback: "Open Terminal")) { openTerminal(cmd) }
+                            .controlSize(.regular)
+                            .help(s.tr("app.pop.open_terminal_help",
+                                       fallback: "Copies the connect command and opens Terminal — paste it with ⌘V"))
+                    }
+                }
+            case .text:
+                EmptyView()
+            }
+        }
+        .padding(16)
+        .frame(width: 380)
+    }
+
+    private func copy(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    /// App Store sandbox: the app may open Terminal but not drive it, so the command goes to the clipboard first.
+    private func openTerminal(_ cmd: String) {
+        copy(cmd)
+        let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        NSWorkspace.shared.openApplication(at: terminal, configuration: NSWorkspace.OpenConfiguration())
     }
 }
 
