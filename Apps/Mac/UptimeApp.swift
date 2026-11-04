@@ -78,7 +78,7 @@ struct MenuBarIcon: View {
         let offline = Panel.showsOffline(store.connection, offlineSince: store.offlineSince,
                                          hasData: store.status != nil, now: Date())
         let waiting = Panel.waitingCount(streams)
-        let ask = streams.contains { $0.asksPermission }
+        let ask = streams.contains { $0.inDialog }
         HStack(spacing: 3) {
             if let sprites {
                 Image(nsImage: BuddyGlyph.image(sprites, alpha: offline ? 0.4 : 1))

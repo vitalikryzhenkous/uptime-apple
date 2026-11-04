@@ -68,10 +68,10 @@ extension APIClient: InputSink {
 }
 
 extension Panel {
-    /// The card offers a reply: the agent waits for you after its turn (not a permission dialog) in tmux on the
+    /// The card offers a reply: the agent waits for you after its turn (no permission or question dialog) in tmux on the
     /// board's machine.
     public static func canReply(_ s: AgentStream) -> Bool {
-        guard s.stateKind == .waiting, !s.asksPermission, s.remote != true,
+        guard s.stateKind == .waiting, !s.inDialog, s.remote != true,
               let pane = s.pane, pane.range(of: #"^%\d{1,6}$"#, options: .regularExpression) != nil,
               let id = s.session, id.range(of: APIClient.sessionIDPattern, options: .regularExpression) != nil
         else { return false }
