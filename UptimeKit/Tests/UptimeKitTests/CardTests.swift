@@ -56,6 +56,13 @@ final class CardTests: XCTestCase {
         XCTAssertNil(Panel.turnLine(s[2], now: 10_000, ru))
     }
 
+    func testTurnTimeCountsFromThePrompt() throws {
+        // a tool call 20 s ago moved `since`; the turn began 12 min ago
+        let s = try streams(#"[{"project": "a", "state": "working", "since": 9980, "turn_started": 9280, "turn_actions": 5}]"#)
+        XCTAssertEqual(Panel.turnLine(s[0], now: 10_000, ru), "12 мин · 5 действий")
+        XCTAssertTrue(Panel.stateLine(s[0], now: 10_000, ru).contains("12 мин"), Panel.stateLine(s[0], now: 10_000, ru))
+    }
+
     func testLinks() throws {
         let st = try UptimeJSON.status(from: Data(#"""
         {"api": 1,

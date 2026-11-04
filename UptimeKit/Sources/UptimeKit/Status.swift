@@ -91,6 +91,8 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
     public let askOptions: [String]?
     /// Tool calls in the current turn (newer boards).
     public let turnActions: Int?
+    /// When the current turn began (the last prompt; newer boards).
+    public let turnStarted: Double?
     /// The hook's short session id: where `POST …/input` goes.
     public let session: String?
     /// The tmux pane the session runs in on the board's machine (v1 only); set = the card can reply.
@@ -105,11 +107,15 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
         case askOptions = "ask_options"
         case lastMsg = "last_msg"
         case turnActions = "turn_actions"
+        case turnStarted = "turn_started"
     }
 
     public var id: String { folder ?? project }
     public var stateKind: StreamState { StreamState(rawValue: state) ?? .unknown }
     public var asksPermission: Bool { ask == "permission" }
+    /// Where "working · N min" counts from: the turn's start; older boards only send the last event's time
+    /// (which restarts the count after every tool call), then the session's start.
+    public var turnStart: Double? { turnStarted ?? since ?? started }
     /// The agent asks you to pick an answer (AskUserQuestion) — a dialog too, not a permission.
     public var asksQuestion: Bool { ask == "question" }
     /// A dialog is open in the terminal: typing there would pick an option.

@@ -129,7 +129,7 @@ public enum Panel {
             } else if running > 0 {
                 line += " · " + t.tp("app.subs", count: running, fallback: "{n} subagents")
             } else {
-                line += since(s.since ?? s.started) // this turn, not the whole session
+                line += since(s.turnStart) // this turn, not the whole session
             }
             return line
         case .idle:
@@ -189,7 +189,7 @@ public enum Panel {
 
     /// Without a plan, the honest measure of a working turn: how long, and how many tool calls (newer boards).
     public static func turnLine(_ s: AgentStream, now: Double, _ t: Strings) -> String? {
-        guard s.stateKind == .working, let start = s.since ?? s.started else { return nil }
+        guard s.stateKind == .working, let start = s.turnStart else { return nil }
         var line = duration(now - start, t)
         if let n = s.turnActions, n > 0 {
             line += " · " + t.tp("app.actions", count: n, fallback: "{n} actions")
