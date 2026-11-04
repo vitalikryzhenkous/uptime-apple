@@ -65,6 +65,7 @@ struct PanelView: View {
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(",")
+                .focusable(false) // the panel opens with no focus ring on it; ⌘, still opens Settings
                 .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
                 .help(s.tr("app.settings", fallback: "Settings…"))
                 .accessibilityLabel(s.tr("app.settings", fallback: "Settings…"))
@@ -76,6 +77,7 @@ struct PanelView: View {
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("q")
+                .focusable(false)
                 .help(s.tr("app.quit", fallback: "Quit"))
                 .accessibilityLabel(s.tr("app.quit", fallback: "Quit"))
             }
