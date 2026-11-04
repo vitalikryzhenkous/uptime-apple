@@ -11,6 +11,7 @@ struct UptimeApp: App {
             PanelView()
                 .environment(app.store)
                 .environment(app.assets)
+                .environment(app.jump)
         } label: {
             MenuBarIcon(store: app.store, sprites: app.assets.sprites)
         }
@@ -30,10 +31,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = LiveStore(makeSource: Prefs.makeSource)
     /// Strings and sprites; drawn from the disk cache until the first refresh.
     let assets = AssetStore(cache: .standard())
+    /// The hotkey's "go to this card" for the panel.
+    let jump = JumpRequest()
     private var assetsBuild: String?
+    private var hotKey: HotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        hotKey = HotKey(code: HotKey.defaultKey.code, modifiers: HotKey.defaultKey.modifiers) { [weak self] in
+            self?.hotKeyPressed()
+        }
         watchBuild()
         // the stream is dead after sleep; reconnect at once instead of waiting for the idle timeout
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -41,6 +48,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.store.start() }
         }
+    }
+
+    /// ⌥⌘U: open the panel (if closed) at the card that needs you most — `Panel.jumpTarget`.
+    private func hotKeyPressed() {
+        jump.request(Panel.jumpTarget(store.status?.streams ?? [])?.id)
+        NSApp.activate()
+        if !jump.panelOpen { _ = StatusItemButton.click() }
     }
 
     /// Fetch locales, sprites and ext again (language change, new board build).
