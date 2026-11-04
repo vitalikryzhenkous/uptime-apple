@@ -159,8 +159,25 @@ struct LimitsCard: View {
                 bar(s.tr("app.limit.week", fallback: "week"), pct: d7.pct, level: Panel.weekLevel(d7.pct))
             }
             let sub = subline
-            if !sub.isEmpty {
-                Text(sub).font(.system(size: 12)).foregroundStyle(t.g2)
+            HStack {
+                if !sub.isEmpty {
+                    Text(sub).font(.system(size: 12)).foregroundStyle(t.g2)
+                }
+                Spacer(minLength: 0)
+                // Limit resets are granted by Anthropic now and then and applied only in Settings → Usage on the web
+                // or Claude Desktop; Claude Code can't see or apply them, so near the limit we just point there.
+                if Panel.suggestsResets(limits) {
+                    Button {
+                        NSWorkspace.shared.open(Panel.usageSettingsURL)
+                    } label: {
+                        Label(s.tr("app.limit.resets", fallback: "Limit resets…"), systemImage: "arrow.counterclockwise")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(t.b)
+                    }
+                    .buttonStyle(.plain)
+                    .help(s.tr("app.limit.resets_help",
+                               fallback: "Opens Settings → Usage on claude.ai: a free limit reset, if you have one, is applied there."))
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -234,11 +251,79 @@ struct SessionRow: View {
             }
             .buttonStyle(.plain)
 
+            // what it waits for: the permission's tool (+ command, opt-in) or the agent's question (opt-in)
+            if let ask = Panel.askLine(stream, s) {
+                Text(ask)
+                    .font(.system(size: 12, design: stream.asksPermission ? .monospaced : .default))
+                    .foregroundStyle(stream.asksPermission ? t.color(.bad) : t.fg)
+                    .lineLimit(2)
+                    .padding(.leading, 20)
+                    .textSelection(.enabled)
+            }
+            progress
+            actions
+
             if expanded { details }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(t.card, in: .rect(cornerRadius: 12))
+    }
+
+    /// The agent's plan as a bar with the current step, or — without a plan — time and tool calls in this turn.
+    @ViewBuilder
+    private var progress: some View {
+        if let p = Panel.planProgress(stream) {
+            HStack(spacing: 8) {
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(t.line)
+                        Capsule().fill(t.b).frame(width: g.size.width * p.fraction)
+                    }
+                }
+                .frame(width: 70, height: 5)
+                Text("\(p.done)/\(p.total)").font(.system(size: 11, weight: .bold, design: .monospaced))
+                if let step = p.step {
+                    Text(step).font(.system(size: 12)).foregroundStyle(t.g2).lineLimit(1)
+                }
+            }
+            .padding(.leading, 20)
+            .accessibilityElement(children: .combine)
+        } else if let line = Panel.turnLine(stream, now: now, s), stream.ctx.map({ Panel.ctxLevel($0.pct) == .ok }) ?? true {
+            // (with high context the state line already shows "≈N turns", keep the card short)
+            Text(line).font(.system(size: 12)).foregroundStyle(t.g2).padding(.leading, 20)
+        }
+    }
+
+    /// CI and PR dots (green / red / grey, yellow while running) that open GitHub, then the session's own links.
+    @ViewBuilder
+    private var actions: some View {
+        let prs = git?.prs ?? []
+        let connect = Panel.connectCommand(Prefs.connectTemplate, stream)
+        if git != nil || stream.claudeURL != nil || connect != nil {
+            HStack(spacing: 10) {
+                if let g = git {
+                    LinkDot(label: "CI", state: g.ciState, url: g.ciLink, t: t, help: s.tr("app.open_ci", fallback: "Open CI"))
+                }
+                ForEach(prs) { pr in
+                    LinkDot(label: "#\(pr.n)", state: pr.checksState, url: pr.link, t: t,
+                            help: s.tr("app.open_pr", fallback: "Open PR") + (pr.title.map { ": \($0)" } ?? ""))
+                }
+                Spacer(minLength: 0)
+                if let url = stream.claudeURL {
+                    IconLink(symbol: "bubble.left.and.text.bubble.right", help: s.tr("app.open_claude", fallback: "Open in Claude"),
+                             t: t) { NSWorkspace.shared.open(url) }
+                }
+                if let cmd = connect {
+                    IconLink(symbol: "terminal", help: s.tr("app.copy_connect", fallback: "Copy the connect command") + "\n" + cmd,
+                             t: t) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(cmd, forType: .string)
+                    }
+                }
+            }
+            .padding(.leading, 20)
+        }
     }
 
     @ViewBuilder
@@ -293,6 +378,49 @@ struct SessionRow: View {
     }
 }
 
+/// A status dot with a short label ("CI", "#12"): green ok, red fail, yellow running, grey unknown; opens GitHub.
+struct LinkDot: View {
+    let label: String
+    let state: CheckState?
+    let url: URL?
+    let t: Theme
+    let help: String
+
+    var body: some View {
+        Button {
+            if let url { NSWorkspace.shared.open(url) }
+        } label: {
+            HStack(spacing: 4) {
+                Circle().fill(t.color(state)).frame(width: 8, height: 8)
+                Text(label).font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(t.g2)
+            }
+            .frame(minHeight: 22)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(url == nil)
+        .help(help)
+        .accessibilityLabel("\(label) \(state?.rawValue ?? "")")
+    }
+}
+
+/// A small icon button with a tooltip.
+struct IconLink: View {
+    let symbol: String
+    let help: String
+    let t: Theme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 13)).foregroundStyle(t.g2).frame(minWidth: 22, minHeight: 22)
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
 /// One dot per subagent: filled while working (board: "точки субагентов").
 struct SubDots: View {
     let subs: [Subagent]
@@ -322,10 +450,7 @@ struct GitLine: View {
             Text(branch).lineLimit(1)
             if let d = git.dirty, d > 0 { Text("✎\(d)").foregroundStyle(t.y) }
             if let a = git.ahead, a > 0 { Text("↑\(a)").foregroundStyle(t.g2) }
-            if git.ciState != nil { Text("CI").foregroundStyle(t.color(git.ciState)) }
-            ForEach(git.prs ?? []) { pr in
-                Text("PR #\(pr.n)\(pr.draft == true ? " draft" : "")").foregroundStyle(t.color(pr.checksState))
-            }
+            // CI and PRs are the dots on the card itself
         }
     }
 }
