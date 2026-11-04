@@ -109,36 +109,82 @@ struct PanelView: View {
         }
     }
 
-    /// One fixed line: machine, then "updated hh:mm" — or, after the grace period, the connection problem in the
-    /// same slot with a retry button. Nothing is inserted or removed, so the window does not jump.
+    /// One fixed line: the M920q (CPU and RAM as mini meters, temperature when the server has a sensor) and the weather
+    /// with its icon. "Updated hh:mm" is the machine block's tooltip; after the grace period the connection problem
+    /// takes the same slot with a retry button. Nothing is inserted or removed, so the window does not jump.
     @ViewBuilder
     private func footer(_ t: Theme, _ s: Strings, offline: Bool) -> some View {
         let st = store.status
-        HStack(spacing: 4) {
+        let updated = store.lastUpdate.map {
+            s.tr("app.conn.live", ["time": .string($0.formatted(date: .omitted, time: .shortened))],
+                 fallback: "updated \($0.formatted(date: .omitted, time: .shortened))")
+        } ?? ""
+        HStack(spacing: 10) {
             if let m = st?.machine {
-                Text("M920Q · CPU \(Int(m.cpu ?? 0))% · RAM \(Int(m.ram ?? 0))%")
+                HStack(spacing: 8) {
+                    Label("M920Q", systemImage: "desktopcomputer")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    if let cpu = m.cpu { MiniMeter(symbol: "cpu", pct: cpu, t: t, label: "CPU") }
+                    if let ram = m.ram { MiniMeter(symbol: "memorychip", pct: ram, t: t, label: "RAM") }
+                    if let temp = m.temp {
+                        Label("\(Int(temp.rounded()))°", systemImage: "thermometer.medium")
+                            .foregroundStyle(temp >= 80 ? t.r : temp >= 65 ? t.y : t.g2)
+                    }
+                }
+                .help(updated)
+                .accessibilityElement(children: .combine)
             }
             if offline {
-                Text("·")
                 ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t, compact: true)
                 Button { store.start() } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.plain)
                     .help(s.tr("app.reconnect", fallback: "Reconnect"))
                     .accessibilityLabel(s.tr("app.reconnect", fallback: "Reconnect"))
-            } else if let u = store.lastUpdate {
-                Text("· " + s.tr("app.conn.live", ["time": .string(u.formatted(date: .omitted, time: .shortened))],
-                                 fallback: "updated \(u.formatted(date: .omitted, time: .shortened))"))
             }
             Spacer(minLength: 4)
             if let w = st?.weather, let temp = w.temp {
                 let sign = temp > 0 ? "+" : ""
                 let word = w.key.map { s.tr($0, fallback: w.text ?? "") } ?? (w.text ?? "")
-                Text("\(sign)\(Int(temp))° \(word.lowercased().capitalizedFirst)")
+                HStack(spacing: 4) {
+                    Image(systemName: Panel.weatherSymbol(key: w.key, group: w.group, day: w.day ?? true))
+                        .symbolRenderingMode(.multicolor)
+                        .font(.system(size: 14))
+                    Text("\(sign)\(Int(temp))°").fontWeight(.semibold).foregroundStyle(t.fg)
+                    if !offline { Text(word.lowercased().capitalizedFirst) }
+                }
+                .help(word.lowercased().capitalizedFirst)
+                .accessibilityElement(children: .combine)
             }
         }
         .font(.system(size: 12))
         .foregroundStyle(t.g2)
         .lineLimit(1)
+    }
+}
+
+/// An icon with a tiny bar and the percentage: CPU / RAM of the M920q, coloured by load.
+struct MiniMeter: View {
+    let symbol: String
+    let pct: Double
+    let t: Theme
+    let label: String
+
+    var body: some View {
+        let level = Panel.machineLevel(pct)
+        HStack(spacing: 3) {
+            Image(systemName: symbol).font(.system(size: 11))
+            ZStack(alignment: .leading) {
+                Capsule().fill(t.line)
+                Capsule().fill(t.color(level)).frame(width: 22 * min(1, max(0, pct / 100)))
+            }
+            .frame(width: 22, height: 4)
+            Text("\(Int(pct.rounded()))%")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(level == .ok ? t.g2 : t.color(level))
+        }
+        .help("\(label) \(Int(pct.rounded()))%")
+        .accessibilityLabel("\(label) \(Int(pct.rounded())) %")
     }
 }
 
@@ -263,11 +309,11 @@ struct SessionRow: View {
 
             if expanded { details }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.leading, 12)
+        .padding(.trailing, 14)
+        .padding(.vertical, 8)
         .background(t.card)
-        .overlay(alignment: .top) {
+        .overlay(alignment: .trailing) {
             StateStrip(color: t.color(Panel.dot(stream)), period: Panel.pulsePeriod(stream))
         }
         .clipShape(.rect(cornerRadius: 12))
@@ -379,8 +425,8 @@ struct SessionRow: View {
     }
 }
 
-/// The session's state as a thin line along the card's top edge, in the state's colour. While the session needs you
-/// or works, a glow spreads from the centre to both edges and fades, again and again (faster when it needs you).
+/// The session's state as a thin line along the card's right edge, in the state's colour. Only when the session needs you
+/// does a soft glow spread from the middle to both ends and fade (every 3.2 s); working is a steady green.
 /// Still with Reduce Motion or when the state has no pulse.
 struct StateStrip: View {
     let color: Color
@@ -389,7 +435,7 @@ struct StateStrip: View {
 
     var body: some View {
         ZStack {
-            Rectangle().fill(color.opacity(period == nil ? 0.55 : 0.35))
+            Rectangle().fill(color.opacity(period == nil ? 0.7 : 0.4))
             if let period, !reduceMotion {
                 TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
                     let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
@@ -397,15 +443,15 @@ struct StateStrip: View {
                     GeometryReader { g in
                         Capsule()
                             .fill(LinearGradient(colors: [color.opacity(0), color, color.opacity(0)],
-                                                 startPoint: .leading, endPoint: .trailing))
-                            .frame(width: max(8, g.size.width * eased * 1.2))
+                                                 startPoint: .top, endPoint: .bottom))
+                            .frame(height: max(8, g.size.height * eased * 1.2))
                             .position(x: g.size.width / 2, y: g.size.height / 2)
-                            .opacity(1 - p * p)
+                            .opacity(0.8 * (1 - p * p)) // a soft glow, not a flash
                     }
                 }
             }
         }
-        .frame(height: 3)
+        .frame(width: 3)
         .accessibilityHidden(true)
     }
 }
