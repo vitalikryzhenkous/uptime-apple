@@ -29,6 +29,14 @@ public struct Status: Decodable, Sendable {
     /// The cat's main line (carries mood, look and pet).
     public var cat: CatLine? { nikolai?.first }
     public var streams: [AgentStream] { claude?.streams ?? [] }
+
+    /// Git info of a session's repo. The server keys `git` by the repo's folder name in ~/apps ("babyloop"), while a
+    /// session's `folder` is relative to home ("apps/babyloop") — the board looks it up by `project`; so do we.
+    public func gitInfo(for s: AgentStream) -> GitInfo? {
+        guard let git else { return nil }
+        let last = (s.folder ?? "").split(separator: "/").last.map(String.init)
+        return git[s.project] ?? last.flatMap { git[$0] } ?? s.folder.flatMap { git[$0] }
+    }
 }
 
 public struct Persona: Decodable, Sendable, Equatable {
