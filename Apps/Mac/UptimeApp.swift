@@ -67,11 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Buddy in the menu bar (his silhouette from /sprites.json, a template image so it follows the menu bar's colour),
-/// faded while offline; the number of sessions waiting for you next to him, with "!" when one asks for a permission.
+/// Buddy in the menu bar (his silhouette from /sprites.json), faded while offline; his eyes tell the state
+/// (`TrayMood`): green working, yellow waiting for you, red and blinking on a permission or a question.
+/// The number of sessions waiting for you next to him, with "!" when a dialog is open.
 struct MenuBarIcon: View {
     let store: LiveStore
     let sprites: Sprites?
+    @State private var now = Date()
+    private let blink = Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         let streams = store.status?.streams ?? []
@@ -79,9 +82,13 @@ struct MenuBarIcon: View {
                                          hasData: store.status != nil, now: Date())
         let waiting = Panel.waitingCount(streams)
         let ask = streams.contains { $0.inDialog }
+        let mood = TrayMood.of(streams, offline: offline)
+        let lit = mood.eyesLit(at: now.timeIntervalSinceReferenceDate,
+                               reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         HStack(spacing: 3) {
             if let sprites {
-                Image(nsImage: BuddyGlyph.image(sprites, alpha: offline ? 0.4 : 1))
+                Image(nsImage: BuddyGlyph.image(sprites, alpha: offline ? 0.4 : 1, eyes: lit ? mood.eyes : nil))
+                    .accessibilityLabel("Uptime: \(mood.rawValue)")
             } else {
                 Image(systemName: "cat")
             }
@@ -89,19 +96,33 @@ struct MenuBarIcon: View {
                 Text(ask ? "\(waiting)!" : "\(waiting)").monospacedDigit()
             }
         }
+        .onReceive(blink) { t in if mood == .dialog { now = t } } // redraw only while red blinks
     }
 }
 
 enum BuddyGlyph {
     /// 1 pt per sprite pixel: 14×14 pt, crisp at 2× (each pixel is 2×2 device pixels).
-    static func image(_ sprites: Sprites, alpha: CGFloat) -> NSImage {
+    /// No eyes: a template image (the menu bar colours it). Lit eyes need colour, so then the body is drawn in
+    /// the label colour, resolved when the menu bar draws it (light or dark menu bar).
+    static func image(_ sprites: Sprites, alpha: CGFloat, eyes: Level? = nil) -> NSImage {
         let pixels = sprites.silhouette()
+        let eyePixels = eyes == nil ? [] : sprites.eyePixels()
+        let eyeColor: NSColor? = switch eyes {
+        case .ok: .systemGreen
+        case .warn: .systemYellow
+        case .bad: .systemRed
+        case .muted, nil: nil
+        }
         let image = NSImage(size: NSSize(width: sprites.width, height: sprites.height), flipped: true) { _ in
-            NSColor.black.withAlphaComponent(alpha).setFill()
+            (eyeColor == nil ? NSColor.black : NSColor.labelColor).withAlphaComponent(alpha).setFill()
             for p in pixels { NSRect(x: p.x, y: p.y, width: 1, height: 1).fill() }
+            if let eyeColor {
+                eyeColor.setFill()
+                for p in eyePixels { NSRect(x: p.x, y: p.y, width: 1, height: 1).fill() }
+            }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = eyeColor == nil
         image.accessibilityDescription = "Uptime"
         return image
     }
