@@ -83,14 +83,14 @@ final class CardTests: XCTestCase {
 }
 
 final class ResetsTests: XCTestCase {
-    private func limits(_ json: String) throws -> Limits {
-        try JSONDecoder().decode(Limits.self, from: Data(json.utf8))
-    }
-
-    func testSuggestsResetsFrom80() throws {
-        XCTAssertFalse(Panel.suggestsResets(try limits(#"{"h5": {"pct": 79}, "d7": {"pct": 50}}"#)))
-        XCTAssertTrue(Panel.suggestsResets(try limits(#"{"h5": {"pct": 12}, "d7": {"pct": 80}}"#)))
-        XCTAssertTrue(Panel.suggestsResets(try limits(#"{"h5": {"pct": 95}, "d7": null}"#)))
-        XCTAssertFalse(Panel.suggestsResets(try limits(#"{"h5": null, "d7": null}"#)))
+    func testResetTextPerWindow() {
+        let s = Strings(lang: "en", table: [:])
+        XCTAssertEqual(Panel.resetText(1000 + 46 * 60, now: 1000, s), "46 min")         // the 5 h window
+        XCTAssertEqual(Panel.resetText(1000 + 3 * 3600 + 600, now: 1000, s), "3 h 10 min")
+        XCTAssertNil(Panel.resetText(900, now: 1000, s))                                 // passed
+        XCTAssertNil(Panel.resetText(nil, now: 1000, s))
+        let week = Panel.resetText(1000 + 3 * 86_400, now: 1000, s)                     // the week: a day and time
+        XCTAssertNotNil(week)
+        XCTAssertFalse(week!.contains("h "), week!)
     }
 }
