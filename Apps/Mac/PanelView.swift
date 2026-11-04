@@ -309,12 +309,17 @@ struct SessionRow: View {
 
             if expanded { details }
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(t.card)
-        .overlay(alignment: .trailing) {
-            StateStrip(color: t.color(Panel.dot(stream)), period: Panel.pulsePeriod(stream))
+        .background {
+            let color = t.color(Panel.dot(stream))
+            ZStack {
+                t.card
+                color.opacity(Panel.tint(stream))
+                if let sh = Panel.shimmer(stream) {
+                    LightSweep(color: color, shimmer: sh)
+                }
+            }
         }
         .clipShape(.rect(cornerRadius: 12))
         .accessibilityElement(children: .contain)
@@ -425,34 +430,30 @@ struct SessionRow: View {
     }
 }
 
-/// The session's state as a thin line along the card's right edge, in the state's colour. Only when the session needs you
-/// does a soft glow spread from the middle to both ends and fade (every 3.2 s); working is a steady green.
-/// Still with Reduce Motion or when the state has no pulse.
-struct StateStrip: View {
+/// A soft band of light in the state's colour that drifts across the card from left to right, then rests
+/// (`Panel.shimmer`). Nothing moves with Reduce Motion — the card keeps only its tint.
+struct LightSweep: View {
     let color: Color
-    let period: Double?
+    let shimmer: Panel.Shimmer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            Rectangle().fill(color.opacity(period == nil ? 0.7 : 0.4))
-            if let period, !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
-                    let p = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
-                    let eased = 1 - pow(1 - p, 3) // fast out of the centre, slow at the edges
-                    GeometryReader { g in
-                        Capsule()
-                            .fill(LinearGradient(colors: [color.opacity(0), color, color.opacity(0)],
-                                                 startPoint: .top, endPoint: .bottom))
-                            .frame(height: max(8, g.size.height * eased * 1.2))
-                            .position(x: g.size.width / 2, y: g.size.height / 2)
-                            .opacity(0.8 * (1 - p * p)) // a soft glow, not a flash
+        if !reduceMotion {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
+                GeometryReader { g in
+                    if let x = Panel.shimmerPosition(shimmer, at: ctx.date.timeIntervalSinceReferenceDate) {
+                        let band = g.size.width * 0.45
+                        LinearGradient(colors: [color.opacity(0), color.opacity(shimmer.strength), color.opacity(0)],
+                                       startPoint: .leading, endPoint: .trailing)
+                            .frame(width: band, height: g.size.height * 2)
+                            .rotationEffect(.degrees(18)) // a slanted sheen reads as light, not a bar
+                            .position(x: -band / 2 + (g.size.width + band) * x, y: g.size.height / 2)
                     }
                 }
             }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
-        .frame(width: 3)
-        .accessibilityHidden(true)
     }
 }
 
