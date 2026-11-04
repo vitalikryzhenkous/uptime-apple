@@ -52,6 +52,24 @@ public struct Sprites: Decodable, Sendable, Equatable {
     }
 }
 
+extension Sprites {
+    /// Buddy's silhouette for the menu bar (a template image): the pose's body pixels, eyes left as holes
+    /// so the face reads at 14 pt, no fog or B frames.
+    public func silhouette(pose: String = fallbackPose) -> [(x: Int, y: Int)] {
+        var out: [(x: Int, y: Int)] = []
+        for (y, line) in rows(pose: pose).enumerated() {
+            for (x, ch) in line.enumerated() {
+                let c = String(ch)
+                guard colors[c] != nil else { continue }
+                let cls = classes[c] ?? ""
+                if cls == "eye" || cls.hasPrefix("fog") || SpritePart(cls).isVisible(phaseB: false) == false { continue }
+                out.append((x, y))
+            }
+        }
+        return out
+    }
+}
+
 /// What a pixel belongs to for animation. The board shows A frames and hides B frames at rest;
 /// animations swap them; eyes blink.
 public enum SpritePart: Sendable, Equatable {

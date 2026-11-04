@@ -12,21 +12,22 @@ struct PanelView: View {
         let t = Theme.of(scheme)
         let s = assets.strings
         // durations tick between status events
-        TimelineView(.periodic(from: .now, by: 15)) { ctx in
+        TimelineView(.periodic(from: .now, by: 5)) { ctx in
             let now = store.serverNow(ctx.date)
+            let offline = Panel.showsOffline(store.connection, offlineSince: store.offlineSince,
+                                             hasData: store.status != nil, now: ctx.date)
             VStack(alignment: .leading, spacing: 10) {
                 header(t, s)
-                if store.connection != .live {
-                    ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t)
-                }
                 if let st = store.status {
                     if let lim = st.claude?.limits, lim.h5 != nil || lim.d7 != nil {
                         LimitsCard(limits: lim, now: now, t: t, s: s)
                     }
                     sessions(st, now: now, t, s)
+                } else {
+                    // nothing on screen yet: the connection state is the content
+                    ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t)
                 }
-                buttons(t, s)
-                footer(t, s)
+                footer(t, s, offline: offline && store.status != nil)
             }
         }
         .padding(14)
@@ -58,15 +59,27 @@ struct PanelView: View {
                 }
             }
             Spacer(minLength: 0)
-            Button {
-                NSApplication.shared.terminate(nil)
-            } label: {
-                Image(systemName: "power").foregroundStyle(t.g2)
+            HStack(spacing: 12) {
+                SettingsLink {
+                    Image(systemName: "gearshape").foregroundStyle(t.g2)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(",")
+                .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
+                .help(s.tr("app.settings", fallback: "Settings…"))
+                .accessibilityLabel(s.tr("app.settings", fallback: "Settings…"))
+
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Image(systemName: "power").foregroundStyle(t.g2)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("q")
+                .help(s.tr("app.quit", fallback: "Quit"))
+                .accessibilityLabel(s.tr("app.quit", fallback: "Quit"))
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut("q")
-            .help(s.tr("app.quit", fallback: "Quit"))
-            .accessibilityLabel(s.tr("app.quit", fallback: "Quit"))
+            .font(.system(size: 14))
         }
     }
 
@@ -88,51 +101,35 @@ struct PanelView: View {
                 }
             }
             // a scroll view would always take its full height; only use one when the list is long
-            if rows.count > 5 || !expanded.isEmpty {
-                ScrollView { list }.frame(height: 360)
+            if rows.count > 6 {
+                ScrollView { list }.frame(height: 420)
             } else {
                 list
             }
         }
     }
 
+    /// One fixed line: machine, then "updated hh:mm" — or, after the grace period, the connection problem in the
+    /// same slot with a retry button. Nothing is inserted or removed, so the window does not jump.
     @ViewBuilder
-    private func buttons(_ t: Theme, _ s: Strings) -> some View {
-        HStack(spacing: 8) {
-            SettingsLink {
-                Text(s.tr("app.settings", fallback: "Settings…"))
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.plain)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(t.line))
-            .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
-
-            if store.connection != .live {
-                Button { store.start() } label: {
-                    Text(s.tr("app.reconnect", fallback: "Reconnect"))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(t.on)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                        .background(t.b, in: .rect(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func footer(_ t: Theme, _ s: Strings) -> some View {
+    private func footer(_ t: Theme, _ s: Strings, offline: Bool) -> some View {
         let st = store.status
-        HStack {
+        HStack(spacing: 4) {
             if let m = st?.machine {
                 Text("M920Q · CPU \(Int(m.cpu ?? 0))% · RAM \(Int(m.ram ?? 0))%")
             }
-            if store.connection == .live, let u = store.lastUpdate {
+            if offline {
+                Text("·")
+                ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t, compact: true)
+                Button { store.start() } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain)
+                    .help(s.tr("app.reconnect", fallback: "Reconnect"))
+                    .accessibilityLabel(s.tr("app.reconnect", fallback: "Reconnect"))
+            } else if let u = store.lastUpdate {
                 Text("· " + s.tr("app.conn.live", ["time": .string(u.formatted(date: .omitted, time: .shortened))],
                                  fallback: "updated \(u.formatted(date: .omitted, time: .shortened))"))
             }
-            Spacer()
+            Spacer(minLength: 4)
             if let w = st?.weather, let temp = w.temp {
                 let sign = temp > 0 ? "+" : ""
                 let word = w.key.map { s.tr($0, fallback: w.text ?? "") } ?? (w.text ?? "")
@@ -223,13 +220,13 @@ struct SessionRow: View {
                         Text(Panel.stateLine(stream, now: now, s)).font(.system(size: 12)).foregroundStyle(t.g2).lineLimit(1)
                     }
                     Spacer(minLength: 4)
-                    if let c = stream.ctx {
-                        Text("\(Int(c.pct.rounded()))%")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(t.color(Panel.ctxLevel(c.pct)))
-                    }
-                    if !(stream.subs ?? []).isEmpty {
+                    if Panel.showsSubDots(stream) {
                         SubDots(subs: stream.subs ?? [], t: t)
+                    }
+                    if let c = stream.ctx {
+                        ContextRing(pct: c.pct, color: t.color(Panel.ctxLevel(c.pct)), track: t.line)
+                            .help(ctxText(c))
+                            .accessibilityLabel(ctxText(c))
                     }
                 }
                 .frame(minHeight: 36)
@@ -335,16 +332,46 @@ struct GitLine: View {
 
 // MARK: - Connection
 
+/// Context use as a ring, like the board's card: the arc and the number in the level's colour.
+struct ContextRing: View {
+    let pct: Double
+    let color: Color
+    let track: Color
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(track, lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, pct / 100)))
+                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(Int(pct.rounded()))")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+        }
+        .frame(width: 28, height: 28)
+    }
+}
+
 struct ConnectionLine: View {
     let connection: ConnectionState
     let lastUpdate: Date?
     let strings: Strings
     let theme: Theme
+    /// In the footer: only the reason ("connection lost"), the rest is implied by the warning colour.
+    var compact = false
 
     var body: some View {
-        Label(text, systemImage: icon)
+        Label(compact ? short : text, systemImage: icon)
             .font(.system(size: 12))
             .foregroundStyle(connection == .live ? theme.g2 : theme.y)
+            .lineLimit(1)
+            .help(text)
+    }
+
+    private var short: String {
+        if case .retrying(_, let reason) = connection { return reason }
+        return text
     }
 
     private var text: String {

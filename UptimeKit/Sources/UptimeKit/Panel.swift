@@ -81,13 +81,36 @@ public enum Panel {
             } else if running > 0 {
                 line += " · " + t.tp("app.subs", count: running, fallback: "{n} subagents")
             } else {
-                line += since(s.started)
+                line += since(s.since ?? s.started) // this turn, not the whole session
             }
             return line
         case .idle:
             return t.tr("app.state.idle", fallback: "idle") + since(s.since)
         case .open, .unknown:
             return t.tr("app.state.open", fallback: "open")
+        }
+    }
+
+    /// Subagent dots only while one of them works; finished ones are in the expanded row.
+    public static func showsSubDots(_ s: AgentStream) -> Bool {
+        (s.subs ?? []).contains(where: \.isWorking)
+    }
+
+    // MARK: connection
+
+    /// Short drops are normal (the stream reconnects in a second); say "offline" only after this long.
+    public static let offlineGrace: Double = 20
+
+    /// Whether the UI should show the connection problem: never for a blip while data is on screen;
+    /// at once when there is nothing to show or the problem needs the user (token, server setup, app update).
+    public static func showsOffline(_ c: ConnectionState, offlineSince: Date?, hasData: Bool, now: Date) -> Bool {
+        switch c {
+        case .live: return false
+        case .noToken, .unauthorized, .notConfigured, .unsupportedAPI: return true
+        case .idle, .connecting, .retrying:
+            guard hasData else { return true }
+            guard let since = offlineSince else { return false }
+            return now.timeIntervalSince(since) >= offlineGrace
         }
     }
 

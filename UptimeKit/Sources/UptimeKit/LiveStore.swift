@@ -35,6 +35,12 @@ public final class LiveStore {
     public private(set) var lastUpdate: Date?
     /// Server clock minus this Mac's clock, seconds — durations are counted on the server's clock, like the board.
     public private(set) var clockOffset: Double = 0
+    /// When the connection last left `.live` (nil while live) — the UI waits `Panel.offlineGrace` before saying so.
+    public private(set) var offlineSince: Date?
+    /// Diagnostics for Settings: how often the stream dropped since launch, and the last reason.
+    public private(set) var drops = 0
+    public private(set) var lastError: String?
+    public private(set) var lastErrorAt: Date?
 
     /// "Now" on the server's clock (epoch seconds).
     public func serverNow(_ date: Date = Date()) -> Double { date.timeIntervalSince1970 + clockOffset }
@@ -67,8 +73,8 @@ public final class LiveStore {
     func run() async {
         var attempt = 0
         while !Task.isCancelled {
-            guard let source = makeSource() else { connection = .noToken; return }
-            connection = .connecting
+            guard let source = makeSource() else { leaveLive(.noToken); return }
+            leaveLive(.connecting)
             var reason = ""
             do {
                 apply(try await source.status())
@@ -80,21 +86,42 @@ public final class LiveStore {
                 reason = "stream ended"
             } catch let e as APIError {
                 switch e {
-                case .unauthorized: connection = .unauthorized; return
-                case .notConfigured: connection = .notConfigured; return
-                case .unsupportedAPI(let v): connection = .unsupportedAPI(v); return
+                case .unauthorized: leaveLive(.unauthorized); return
+                case .notConfigured: leaveLive(.notConfigured); return
+                case .unsupportedAPI(let v): leaveLive(.unsupportedAPI(v)); return
                 case .badStatus(let code): reason = "HTTP \(code)"
                 case .invalidResponse: reason = "invalid response"
                 }
             } catch {
                 if Task.isCancelled || error is CancellationError { return }
-                reason = (error as? URLError).map { "network (\($0.code.rawValue))" } ?? "\(type(of: error))"
+                reason = (error as? URLError).map(Self.describe) ?? "\(type(of: error))"
             }
             attempt += 1
+            drops += 1
+            lastError = reason
+            lastErrorAt = Date()
             let delay = Backoff.seconds(attempt: attempt)
-            connection = .retrying(seconds: delay, reason: reason)
+            leaveLive(.retrying(seconds: delay, reason: reason))
             do { try await sleep(delay) } catch { return }
         }
+    }
+
+    /// Readable reason instead of "-1005".
+    nonisolated static func describe(_ e: URLError) -> String {
+        switch e.code {
+        case .networkConnectionLost: return "connection lost"
+        case .timedOut: return "timeout"
+        case .notConnectedToInternet: return "no network"
+        case .cannotFindHost, .dnsLookupFailed: return "host not found"
+        case .cannotConnectToHost: return "server unreachable"
+        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate: return "TLS"
+        default: return "network \(e.code.rawValue)"
+        }
+    }
+
+    private func leaveLive(_ state: ConnectionState) {
+        if offlineSince == nil { offlineSince = Date() }
+        connection = state
     }
 
     private func apply(_ s: Status) {
@@ -102,6 +129,7 @@ public final class LiveStore {
         status = s
         lastUpdate = now
         if let t = s.serverTime { clockOffset = t - now.timeIntervalSince1970 }
+        offlineSince = nil
         connection = .live
     }
 }
