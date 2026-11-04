@@ -99,7 +99,8 @@ struct PanelView: View {
             let list = VStack(spacing: 6) {
                 ForEach(rows) { r in
                     SessionRow(stream: r, git: st.gitInfo(for: r), now: now,
-                               expanded: expanded.contains(r.id), t: t, s: s) {
+                               expanded: expanded.contains(r.id), t: t, s: s,
+                               permission: Panel.permission(for: r, in: st.permissions, now: now)) {
                         if expanded.contains(r.id) { expanded.remove(r.id) } else { expanded.insert(r.id) }
                     }
                 }
@@ -253,6 +254,8 @@ struct SessionRow: View {
     let expanded: Bool
     let t: Theme
     let s: Strings
+    /// The open request behind its permission dialog (the board's opt-in `remote_approve`).
+    let permission: PermissionRequest?
     let toggle: () -> Void
     @State private var showAll = false
     @Environment(JumpRequest.self) private var jump
@@ -287,7 +290,10 @@ struct SessionRow: View {
             // what it waits for: the permission's tool (+ command, opt-in) or the agent's question (opt-in)
             if let ask = Panel.askLine(stream, s) {
                 AgentText(text: ask, command: stream.asksPermission, t: t)
-                if Panel.showsAll(stream, text: ask) {
+                if let permission {
+                    // "Allow once" only in the popover, beside the whole command
+                    PermissionBar(request: permission, t: t, s: s, review: { showAll = true })
+                } else if Panel.showsAll(stream, text: ask) {
                     Button(s.tr("app.pop.show_all", fallback: "Show all ›")) { showAll = true }
                         .buttonStyle(.plain)
                         .font(.system(size: 12, weight: .semibold))
@@ -315,8 +321,10 @@ struct SessionRow: View {
         }
         .clipShape(.rect(cornerRadius: 12))
         .popover(isPresented: $showAll, arrowEdge: .leading) {
-            AgentPopover(stream: stream, text: Panel.askLine(stream, s) ?? Panel.stateLine(stream, now: now, s),
-                         now: now, t: t, s: s)
+            AgentPopover(stream: stream,
+                         text: permission.map { Panel.permissionText($0, s: stream, s) }
+                             ?? Panel.askLine(stream, s) ?? Panel.stateLine(stream, now: now, s),
+                         now: now, t: t, s: s, permission: permission)
                 .environment(jump) // a popover is its own window: hand the request on explicitly
         }
         // the hotkey: a card without a reply field (a dialog, not in tmux) opens its popover
@@ -460,6 +468,8 @@ struct AgentPopover: View {
     let now: Double
     let t: Theme
     let s: Strings
+    /// An open permission request: "Allow once" / "Deny" instead of the read-only note.
+    var permission: PermissionRequest? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var copied = false
 
@@ -519,6 +529,14 @@ struct AgentPopover: View {
                 ReplyBar(stream: stream, t: t, s: s, autofocus: true)
                 Text(s.tr("app.pop.hint", fallback: "Enter — send · Esc — close"))
                     .font(.system(size: 11)).foregroundStyle(t.g2)
+            case .readOnly where permission != nil:
+                PermissionBar(request: permission!, t: t, s: s, full: true)
+                if let cmd = Panel.connectCommand(Prefs.connectTemplate, stream) {
+                    Button(s.tr("app.pop.open_terminal", fallback: "Open Terminal")) { openTerminal(cmd) }
+                        .controlSize(.small)
+                        .help(s.tr("app.pop.open_terminal_help",
+                                   fallback: "Copies the connect command and opens Terminal — paste it with ⌘V"))
+                }
             case .readOnly:
                 HStack(alignment: .center, spacing: 8) {
                     Text(s.tr("app.pop.locked",
@@ -551,6 +569,75 @@ struct AgentPopover: View {
         copy(cmd)
         let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
         NSWorkspace.shared.openApplication(at: terminal, configuration: NSWorkspace.OpenConfiguration())
+    }
+}
+
+/// "Allow once" / "Deny" for a permission dialog (the board's opt-in `remote_approve`, `POST /api/v1/permissions/<id>`);
+/// the terminal's dialog stays open, whoever answers first wins. The card offers "Deny" and "Review ›"; "Allow once"
+/// only in the popover, beside the whole command, and never for a risky or partly hidden one. No button is the
+/// default and "Allow once" takes no keyboard focus: Return or Space never allows.
+struct PermissionBar: View {
+    let request: PermissionRequest
+    let t: Theme
+    let s: Strings
+    /// In the popover (the whole command is visible): "Allow once" too, and why it is missing.
+    var full = false
+    var review: (() -> Void)? = nil
+    @State private var sending = false
+    @State private var note: ReplyBar.Note?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if full, let why = Panel.denyOnlyText(request, s) {
+                Label(why, systemImage: "exclamationmark.shield")
+                    .font(.system(size: 12))
+                    .foregroundStyle(t.r)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                if full && Panel.canAllow(request) {
+                    Button(s.tr("app.perm.allow", fallback: "Allow once")) { answer(.allow) }
+                        .buttonStyle(.bordered)
+                        .tint(t.gr)
+                        .focusable(false)
+                }
+                Button(s.tr("app.perm.deny", fallback: "Deny")) { answer(.deny) }
+                    .buttonStyle(.bordered)
+                    .tint(t.r)
+                if let review {
+                    Button(s.tr("app.perm.review", fallback: "Review ›"), action: review)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(t.b)
+                }
+                Spacer(minLength: 0)
+            }
+            .controlSize(.small)
+            .disabled(sending)
+            if let note {
+                Text(note.text).font(.system(size: 11)).foregroundStyle(note.ok ? t.gr : t.r).lineLimit(1)
+            }
+        }
+    }
+
+    private func answer(_ decision: PermissionDecision) {
+        guard let client = Prefs.makeClient(), !sending else { return }
+        sending = true
+        note = nil
+        Task { @MainActor in
+            defer { sending = false }
+            do {
+                switch try await client.decide(decision, request: request.id) {
+                case .done:
+                    note = ReplyBar.Note(text: decision == .allow ? s.tr("app.perm.allowed", fallback: "Allowed")
+                                                                  : s.tr("app.perm.denied", fallback: "Denied"), ok: true)
+                case .refused(let code):
+                    note = ReplyBar.Note(text: Panel.decisionErrorText(code, s), ok: false)
+                }
+            } catch {
+                note = ReplyBar.Note(text: Panel.decisionErrorText("network", s), ok: false)
+            }
+        }
     }
 }
 
