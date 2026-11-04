@@ -39,6 +39,19 @@ final class InputTests: XCTestCase {
         XCTAssertEqual(s.map(Panel.offersCompact), [true, false, false, false, false, false]) // ≥70 % context
     }
 
+    func testQuestionIsADialogNotAPermission() throws {
+        let q = try XCTUnwrap(UptimeJSON.status(from: Data(#"""
+        {"api": 1, "claude": {"streams": [{"project": "q", "state": "waiting", "ask": "question", "session": "abc129",
+          "pane": "%9", "ask_tool": {"tool": "AskUserQuestion", "what": ""}, "ask_text": "Порядок по имени?"}]}}
+        """#.utf8)).streams.first)
+        let s = Strings(lang: "en", table: [:])
+        XCTAssertFalse(Panel.canReply(q)) // typing a digit would pick an option
+        XCTAssertFalse(q.asksPermission)
+        XCTAssertEqual(Panel.dot(q), .bad)
+        XCTAssertEqual(Panel.stateLine(q, now: 0, s), "asks you a question")
+        XCTAssertEqual(Panel.askLine(q, s), "Порядок по имени?") // the question, not "asks for AskUserQuestion"
+    }
+
     func testDraftRules() {
         XCTAssertEqual(AgentInput.problem("  "), .empty)
         XCTAssertEqual(AgentInput.problem("/clear"), .command)

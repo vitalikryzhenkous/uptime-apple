@@ -107,6 +107,10 @@ public struct AgentStream: Decodable, Sendable, Identifiable {
     public var id: String { folder ?? project }
     public var stateKind: StreamState { StreamState(rawValue: state) ?? .unknown }
     public var asksPermission: Bool { ask == "permission" }
+    /// The agent asks you to pick an answer (AskUserQuestion) — a dialog too, not a permission.
+    public var asksQuestion: Bool { ask == "question" }
+    /// A dialog is open in the terminal: typing there would pick an option.
+    public var inDialog: Bool { asksPermission || asksQuestion }
 
     /// The session on claude.ai (Remote Control docs: the session URL is claude.ai/code/<id>).
     public var claudeURL: URL? {

@@ -302,11 +302,7 @@ struct SessionRow: View {
 
             // what it waits for: the permission's tool (+ command, opt-in) or the agent's question (opt-in)
             if let ask = Panel.askLine(stream, s) {
-                Text(ask)
-                    .font(.system(size: 12, design: stream.asksPermission ? .monospaced : .default))
-                    .foregroundStyle(stream.asksPermission ? t.color(.bad) : t.fg)
-                    .lineLimit(2)
-                    .textSelection(.enabled)
+                AgentText(text: ask, command: stream.asksPermission, t: t)
             }
             progress
             if Panel.canReply(stream) {
@@ -433,6 +429,27 @@ struct SessionRow: View {
             Text(k).foregroundStyle(t.g2)
             Text(v).lineLimit(2)
         }
+    }
+}
+
+/// What the agent waits for: the permission's command (red, monospaced), its question, or the end of its reply —
+/// three lines, a click shows all of it (the board sends up to 600 characters with the share_text opt-in).
+struct AgentText: View {
+    let text: String
+    let command: Bool
+    let t: Theme
+    @State private var open = false
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, design: command ? .monospaced : .default))
+            .foregroundStyle(command ? t.color(.bad) : t.fg)
+            .lineLimit(open ? nil : 3)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .onTapGesture { open.toggle() }
+            .textSelection(.enabled)
     }
 }
 

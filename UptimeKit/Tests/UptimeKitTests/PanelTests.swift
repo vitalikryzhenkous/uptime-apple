@@ -23,7 +23,7 @@ final class PanelTests: XCTestCase {
         XCTAssertEqual([13, 70, 84, 85, 91].map(Panel.ctxLevel), [.ok, .warn, .warn, .bad, .bad])
     }
 
-    func testSortingPutsWhoNeedsYouFirst() throws {
+    func testStableOrderByName() throws {
         let list = try streams("""
         [{"project": "zeta", "state": "working"},
          {"project": "idle1", "state": "idle"},
@@ -33,7 +33,8 @@ final class PanelTests: XCTestCase {
          {"project": "early", "state": "waiting", "since": 100},
          {"project": "o", "state": "open"}]
         """)
-        XCTAssertEqual(Panel.sorted(list).map(\.project), ["ask", "early", "late", "alpha", "zeta", "idle1", "o"])
+        // by name only: a card never jumps when its state changes (the state is in its colour and words)
+        XCTAssertEqual(Panel.sorted(list).map(\.project), ["alpha", "ask", "early", "idle1", "late", "o", "zeta"])
         XCTAssertEqual(Panel.waitingCount(list), 3)
         XCTAssertEqual(list.map(Panel.dot), [.ok, .muted, .warn, .ok, .bad, .warn, .muted])
     }

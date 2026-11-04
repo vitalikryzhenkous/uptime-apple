@@ -25,7 +25,7 @@ public enum Panel {
 
     public static func dot(_ s: AgentStream) -> Level {
         switch s.stateKind {
-        case .waiting: return s.asksPermission ? .bad : .warn
+        case .waiting: return s.inDialog ? .bad : .warn // red: blocked on a dialog in the terminal
         case .working: return .ok
         default: return .muted
         }
@@ -87,23 +87,13 @@ public enum Panel {
     /// CPU / RAM of the M920q: yellow from 75 %, red from 90 %.
     public static func machineLevel(_ pct: Double) -> Level { pct >= 90 ? .bad : pct >= 75 ? .warn : .ok }
 
-    private static func rank(_ s: AgentStream) -> Int {
-        switch s.stateKind {
-        case .waiting: return s.asksPermission ? 0 : 1
-        case .working: return 2
-        case .idle: return 3
-        case .open: return 4
-        case .unknown: return 5
-        }
-    }
-
-    /// Who needs you first: permission asks, then waiting (longest wait first), working, idle, open.
+    /// A stable order — by name, then folder — so a card never jumps when its state changes; who needs you shows
+    /// in the card's colour and words (an order by urgency moved cards under the pointer).
     public static func sorted(_ streams: [AgentStream]) -> [AgentStream] {
         streams.sorted { a, b in
-            let ra = rank(a), rb = rank(b)
-            if ra != rb { return ra < rb }
-            if ra <= 1, let sa = a.since, let sb = b.since, sa != sb { return sa < sb }
-            return a.project.localizedStandardCompare(b.project) == .orderedAscending
+            let byName = a.project.localizedStandardCompare(b.project)
+            if byName != .orderedSame { return byName == .orderedAscending }
+            return (a.folder ?? "") < (b.folder ?? "")
         }
     }
 
@@ -127,6 +117,8 @@ public enum Panel {
         switch s.stateKind {
         case .waiting where s.asksPermission:
             return t.tr("app.state.permission", fallback: "waits for permission") + since(s.since)
+        case .waiting where s.asksQuestion:
+            return t.tr("app.state.question", fallback: "asks you a question") + since(s.since)
         case .waiting:
             return t.tr("app.state.waiting", fallback: "waiting for you") + since(s.since)
         case .working:
@@ -164,6 +156,7 @@ public enum Panel {
     /// or the end of the agent's last reply (opt-in). `nil` when there is nothing to say.
     public static func askLine(_ s: AgentStream, _ t: Strings) -> String? {
         guard s.stateKind == .waiting || s.stateKind == .idle else { return nil }
+        if s.asksQuestion { return s.askText.flatMap { $0.isEmpty ? nil : $0 } } // the question itself (opt-in)
         if s.asksPermission {
             var parts: [String] = []
             if let tool = s.askTool?.tool, !tool.isEmpty {
