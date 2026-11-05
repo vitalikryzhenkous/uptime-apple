@@ -82,7 +82,11 @@ final class PairingTests: XCTestCase {
     }
 
     func testCommandForTheWizard() {
-        XCTAssertEqual(Pairing.command(baseURL: base),
-                       "ssh m920q '~/apps/uptime-board/tools/pair.py --url https://board.test:8443'")
+        XCTAssertEqual(Pairing.command(baseURL: base, user: " lenovo "),
+                       "ssh lenovo@board.test '~/apps/uptime-board/tools/pair.py --url https://board.test:8443'")
+        XCTAssertEqual(Pairing.command(baseURL: base, user: ""),
+                       "ssh board.test '~/apps/uptime-board/tools/pair.py --url https://board.test:8443'")
+        XCTAssertEqual(Pairing.command(baseURL: base, user: "x; rm -rf ~"), // never pasted into the shell as is
+                       "ssh board.test '~/apps/uptime-board/tools/pair.py --url https://board.test:8443'")
     }
 }

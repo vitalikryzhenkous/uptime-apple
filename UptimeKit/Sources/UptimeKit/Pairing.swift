@@ -40,9 +40,13 @@ public enum Pairing {
         return c.url
     }
 
-    /// What prints a code on the board's machine, for the wizard's Copy button.
-    public static func command(baseURL: URL) -> String {
-        "ssh m920q '~/apps/uptime-board/tools/pair.py --url \(baseURL.absoluteString)'"
+    /// What prints a code on the board's machine, for the wizard's Copy button. The board's Tailscale name is also
+    /// its SSH host (the WSL node); `user` is the account there — empty or anything but a plain name is left out.
+    public static func command(baseURL: URL, user: String) -> String {
+        let host = baseURL.host ?? ""
+        let u = user.trimmingCharacters(in: .whitespaces)
+        let login = u.range(of: #"^[A-Za-z0-9._-]{1,32}$"#, options: .regularExpression) != nil ? "\(u)@\(host)" : host
+        return "ssh \(login) '~/apps/uptime-board/tools/pair.py --url \(baseURL.absoluteString)'"
     }
 
     /// `POST /api/v1/pair/claim` — no token: the code is the proof. The token comes back once; keep it in the Keychain.

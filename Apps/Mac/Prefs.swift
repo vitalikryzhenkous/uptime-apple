@@ -27,6 +27,12 @@ enum Prefs {
         set { UserDefaults.standard.set(newValue, forKey: "notifyPermissions") }
     }
 
+    /// The account on the board's machine for the pairing wizard's `ssh <user>@<board host>` (the owner's: lenovo).
+    static var sshUser: String {
+        get { UserDefaults.standard.string(forKey: "sshUser") ?? "lenovo" }
+        set { UserDefaults.standard.set(newValue, forKey: "sshUser") }
+    }
+
     static var lang: String? {
         get { UserDefaults.standard.string(forKey: langKey).flatMap { Strings.isValidCode($0) ? $0 : nil } }
         set { UserDefaults.standard.set(newValue ?? "", forKey: langKey) }
