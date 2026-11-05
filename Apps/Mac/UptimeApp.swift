@@ -8,7 +8,7 @@ struct UptimeApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PanelView()
+            PanelView(pair: { app.showOnboarding(nil) })
                 .environment(app.store)
                 .environment(app.assets)
                 .environment(app.jump)
