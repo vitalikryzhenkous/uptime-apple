@@ -6,6 +6,8 @@ struct SettingsView: View {
     @Environment(AssetStore.self) private var assets
     @Environment(\.colorScheme) private var scheme
     let refreshAssets: @MainActor () -> Void
+    let notifyChanged: @MainActor () -> Void
+    @State private var notify = Prefs.notifyPermissions
     @State private var address = Prefs.baseURL.absoluteString
     @State private var token = ""
     @State private var hasToken = Prefs.tokens.read() != nil
@@ -55,6 +57,19 @@ struct SettingsView: View {
             } footer: {
                 Text(s.tr("app.set.connect_help",
                           fallback: "What the card's button copies; {folder} is the session's folder, {project} its name."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle(s.tr("app.set.notify_perm", fallback: "Notify about permission requests"), isOn: $notify)
+                    .onChange(of: notify) { _, new in
+                        Prefs.notifyPermissions = new
+                        notifyChanged()
+                    }
+            } footer: {
+                Text(s.tr("app.set.notify_perm_help",
+                          fallback: "A notification with Deny and Open. Allow once only in the popover, beside the whole command."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
