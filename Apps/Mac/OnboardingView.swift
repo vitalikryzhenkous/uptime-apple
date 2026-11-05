@@ -19,6 +19,7 @@ struct OnboardingView: View {
     @State private var busy = false
     @State private var problem: String?
     @State private var copied = false
+    @State private var sshUser = Prefs.sshUser
     @State private var notifyAsked = false
 
     init(link: Pairing.Link?, refreshAssets: @escaping @MainActor () -> Void, finish: @escaping @MainActor () -> Void) {
@@ -46,7 +47,7 @@ struct OnboardingView: View {
             buttons(s)
         }
         .padding(24)
-        .frame(width: 460, height: 340)
+        .frame(width: 460, height: 370)
     }
 
     private func title(_ s: Strings) -> String {
@@ -72,11 +73,20 @@ struct OnboardingView: View {
     }
 
     private func codeStep(_ s: Strings) -> some View {
-        let command = Prefs.validURL(address).map(Pairing.command(baseURL:)) ?? ""
+        let command = Prefs.validURL(address).map { Pairing.command(baseURL: $0, user: sshUser) } ?? ""
         return VStack(alignment: .leading, spacing: 8) {
             Text(s.tr("app.onb.code.text", fallback: "Run this in Terminal on this Mac, then ⌘-click the link it prints — "
                       + "or type the 6 digits here. The code works once, for 2 minutes."))
                 .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 4) { // the account on the board's machine: ssh <user>@<board host>
+                Text("ssh").font(.system(.caption, design: .monospaced))
+                TextField("", text: $sshUser, prompt: Text("lenovo"))
+                    .font(.system(.caption, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 110)
+                    .onChange(of: sshUser) { _, new in Prefs.sshUser = new; copied = false }
+                Text("@\(Prefs.validURL(address)?.host ?? "…")").font(.system(.caption, design: .monospaced))
+            }
             HStack {
                 Text(command)
                     .font(.system(.caption, design: .monospaced))
