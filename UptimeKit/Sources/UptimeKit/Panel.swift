@@ -57,7 +57,7 @@ public enum Panel {
         return x * x * (3 - 2 * x) // ease in and out
     }
 
-    // MARK: footer
+    // MARK: machine line
 
     /// SF Symbol for the board's weather (`key` from server/world.py's WMO map, `group` as the fallback).
     public static func weatherSymbol(key: String?, group: String?, day: Bool) -> String {
