@@ -21,6 +21,12 @@ enum Prefs {
         set { UserDefaults.standard.set(newValue, forKey: "connect") }
     }
 
+    /// A macOS notification for each permission request (only with the board's `remote_approve`). On by default.
+    static var notifyPermissions: Bool {
+        get { UserDefaults.standard.object(forKey: "notifyPermissions") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "notifyPermissions") }
+    }
+
     static var lang: String? {
         get { UserDefaults.standard.string(forKey: langKey).flatMap { Strings.isValidCode($0) ? $0 : nil } }
         set { UserDefaults.standard.set(newValue ?? "", forKey: langKey) }

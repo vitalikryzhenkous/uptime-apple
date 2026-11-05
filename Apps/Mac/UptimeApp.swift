@@ -1,7 +1,7 @@
 import SwiftUI
 import UptimeKit
 
-/// Menu-bar app: the panel (design "A on Mac") and Settings. Notifications come next.
+/// Menu-bar app: the panel (design "A on Mac"), Settings, and a notification for each permission request.
 @main
 struct UptimeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var app
@@ -18,7 +18,7 @@ struct UptimeApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView(refreshAssets: app.refreshAssets)
+            SettingsView(refreshAssets: app.refreshAssets, notifyChanged: app.notifyChanged)
                 .environment(app.store)
                 .environment(app.assets)
         }
@@ -35,9 +35,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let jump = JumpRequest()
     private var assetsBuild: String?
     private var hotKey: HotKey?
+    private var notifier: PermissionNotifier?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        let jump = self.jump
+        notifier = PermissionNotifier(store: store, assets: assets,
+                                      open: { [weak self] id in self?.openCard(id) },
+                                      panelOpen: { jump.panelOpen })
+        notifier?.start()
         hotKey = HotKey(code: HotKey.defaultKey.code, modifiers: HotKey.defaultKey.modifiers) { [weak self] in
             self?.hotKeyPressed()
         }
@@ -52,9 +58,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// ⌥⌘U: open the panel (if closed) at the card that needs you most — `Panel.jumpTarget`.
     private func hotKeyPressed() {
-        jump.request(Panel.jumpTarget(store.status?.streams ?? [])?.id)
+        openCard(Panel.jumpTarget(store.status?.streams ?? [])?.id)
+    }
+
+    /// Open the panel (if closed) at this card; a card with a dialog opens its popover. Also a notification's "Open".
+    private func openCard(_ id: String?) {
+        jump.request(id)
         NSApp.activate()
         if !jump.panelOpen { _ = StatusItemButton.click() }
+    }
+
+    /// The Settings switch for permission notifications.
+    func notifyChanged() {
+        notifier?.update()
     }
 
     /// Fetch locales, sprites and ext again (language change, new board build).
