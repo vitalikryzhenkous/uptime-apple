@@ -75,8 +75,8 @@ struct OnboardingView: View {
     private func codeStep(_ s: Strings) -> some View {
         let command = Prefs.validURL(address).map { Pairing.command(baseURL: $0, user: sshUser) } ?? ""
         return VStack(alignment: .leading, spacing: 8) {
-            Text(s.tr("app.onb.code.text", fallback: "Run this in Terminal on this Mac, then ⌘-click the link it prints — "
-                      + "or type the 6 digits here. The code works once, for 2 minutes."))
+            Text(s.tr("app.onb.code.text", fallback: "Run this in Terminal on this Mac and type here the 6 digits it prints. "
+                      + "The code works once, for 2 minutes."))
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 4) { // the account on the board's machine: ssh <user>@<board host>
                 Text("ssh").font(.system(.caption, design: .monospaced))

@@ -107,6 +107,20 @@ final class LiveStoreTests: XCTestCase {
         let store = LiveStore(makeSource: { source }, sleep: { _ in XCTFail("must not retry") })
         await store.run()
         XCTAssertEqual(store.connection, .unauthorized)
+        XCTAssertNil(store.status, "a revoked token must not leave the old cards on screen")
+    }
+
+    @MainActor
+    func testTokenRemovedClearsCards() async {
+        let source = FakeSource([.stream(status("a"), [], end: APIError.notConfigured)])
+        var calls = 0
+        let store = LiveStore(makeSource: { calls += 1; return calls == 1 ? source : nil },
+                              sleep: { _ in XCTFail("must not retry") })
+        await store.run()
+        XCTAssertEqual(store.status?.build, "a")  // other stops keep the last cards
+        await store.run()  // second start: no token in the Keychain any more
+        XCTAssertEqual(store.connection, .noToken)
+        XCTAssertNil(store.status)
     }
 
     @MainActor
