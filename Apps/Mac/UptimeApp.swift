@@ -18,7 +18,8 @@ struct UptimeApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView(refreshAssets: app.refreshAssets, notifyChanged: app.notifyChanged)
+            SettingsView(refreshAssets: app.refreshAssets, notifyChanged: app.notifyChanged,
+                         pair: { app.showOnboarding(nil) })
                 .environment(app.store)
                 .environment(app.assets)
         }
@@ -36,9 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var assetsBuild: String?
     private var hotKey: HotKey?
     private var notifier: PermissionNotifier?
+    private var onboarding: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        if Prefs.tokens.read() == nil, onboarding == nil { showOnboarding(nil) } // first run
         let jump = self.jump
         notifier = PermissionNotifier(store: store, assets: assets,
                                       open: { [weak self] id in self?.openCard(id) },
@@ -66,6 +69,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         jump.request(id)
         NSApp.activate()
         if !jump.panelOpen { _ = StatusItemButton.click() }
+    }
+
+    /// `uptime://pair?code=…&url=…` from `tools/pair.py` (⌘-click in Terminal): the wizard with the code filled in.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let link = urls.lazy.compactMap(Pairing.link).first else { return }
+        showOnboarding(link)
+    }
+
+    /// The pairing wizard in its own window (a menu-bar app has none); a new link replaces what it shows.
+    func showOnboarding(_ link: Pairing.Link?) {
+        let view = OnboardingView(link: link, refreshAssets: { [weak self] in self?.refreshAssets() },
+                                  finish: { [weak self] in self?.onboarding?.close() })
+            .environment(store)
+            .environment(assets)
+        let window = onboarding ?? {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            w.title = "Uptime"
+            w.isReleasedWhenClosed = false
+            onboarding = w
+            return w
+        }()
+        window.contentViewController = NSHostingController(rootView: view)
+        window.center()
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
     }
 
     /// The Settings switch for permission notifications.

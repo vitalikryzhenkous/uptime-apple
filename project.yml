@@ -37,6 +37,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.developer-tools
         LSUIElement: true            # menu-bar only: no Dock icon, no main window
+        CFBundleURLTypes:            # uptime://pair?code=…&url=… from uptime-board tools/pair.py
+          - CFBundleURLName: uptime.pair
+            CFBundleURLSchemes: [uptime]
         NSHumanReadableCopyright: ""
     entitlements:
       path: Apps/Mac/UptimeMac.entitlements
