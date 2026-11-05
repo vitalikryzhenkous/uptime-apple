@@ -7,6 +7,8 @@ struct SettingsView: View {
     @Environment(\.colorScheme) private var scheme
     let refreshAssets: @MainActor () -> Void
     let notifyChanged: @MainActor () -> Void
+    /// The pairing wizard (one-time code from tools/pair.py) — instead of pasting the main token.
+    let pair: @MainActor () -> Void
     @State private var notify = Prefs.notifyPermissions
     @State private var address = Prefs.baseURL.absoluteString
     @State private var token = ""
@@ -24,9 +26,10 @@ struct SettingsView: View {
                 SecureField(s.tr("app.set.token", fallback: "Token"), text: $token,
                             prompt: Text(hasToken ? s.tr("app.set.token_saved", fallback: "saved in Keychain — type to replace")
                                                   : "UPTIME_API_TOKEN"))
+                Button(s.tr("app.set.pair", fallback: "Pair with a code…"), action: pair)
             } footer: {
-                Text(s.tr("app.set.token_help", fallback: "The token is the UPTIME_API_TOKEN line in ~/apps/uptime-board/.env "
-                          + "on the M920q. It is kept only in your Keychain."))
+                Text(s.tr("app.set.pair_help", fallback: "Easiest: pair with a one-time code — this Mac gets its own token, "
+                          + "revocable on the M920q. The token field is for the main token, if you must."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
