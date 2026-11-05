@@ -16,6 +16,12 @@ struct SettingsView: View {
     @State private var lang = Prefs.lang ?? ""
     @State private var connect = Prefs.connectTemplate
     @State private var problem: String?
+    @State private var saved = false
+
+    /// Save only has work when the address or the token field differs from what is stored.
+    private var dirty: Bool {
+        address.trimmingCharacters(in: .whitespacesAndNewlines) != Prefs.baseURL.absoluteString || !token.isEmpty
+    }
 
     var body: some View {
         let s = assets.strings
@@ -92,8 +98,11 @@ struct SettingsView: View {
                 }
                 Spacer()
                 Button(s.tr("app.reconnect", fallback: "Reconnect")) { store.start() }
-                Button(s.tr("app.set.save", fallback: "Save"), action: save)
+                // nothing to save → greyed out, so a press visibly did something (seen live, 2026-11-05)
+                Button(saved && !dirty ? s.tr("app.set.saved", fallback: "Saved ✓") : s.tr("app.set.save", fallback: "Save"),
+                       action: save)
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!dirty)
             }
         }
         .formStyle(.grouped)
@@ -122,6 +131,8 @@ struct SettingsView: View {
         }
         do {
             Prefs.baseURL = url
+            address = url.absoluteString
+            saved = true
             if !token.isEmpty {
                 try Prefs.tokens.write(token.trimmingCharacters(in: .whitespacesAndNewlines))
                 token = ""

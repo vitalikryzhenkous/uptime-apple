@@ -122,6 +122,8 @@ public final class LiveStore {
     private func leaveLive(_ state: ConnectionState) {
         if offlineSince == nil { offlineSince = Date() }
         connection = state
+        // no access any more (token removed or revoked): old cards must not look alive (seen live, 2026-11-05)
+        if state == .noToken || state == .unauthorized { status = nil }
     }
 
     private func apply(_ s: Status) {

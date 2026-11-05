@@ -40,6 +40,13 @@ private final class FakeSource: StatusSource, @unchecked Sendable {
 }
 
 /// Records the backoff delays and stops the loop after `limit` sleeps.
+/// true on the first call only: a token that is there once, then removed.
+private final class FirstOnly: @unchecked Sendable {
+    private let lock = NSLock()
+    private var used = false
+    func take() -> Bool { lock.withLock { defer { used = true }; return !used } }
+}
+
 private actor Sleeps {
     private(set) var delays: [Int] = []
     let limit: Int
@@ -107,6 +114,20 @@ final class LiveStoreTests: XCTestCase {
         let store = LiveStore(makeSource: { source }, sleep: { _ in XCTFail("must not retry") })
         await store.run()
         XCTAssertEqual(store.connection, .unauthorized)
+        XCTAssertNil(store.status, "a revoked token must not leave the old cards on screen")
+    }
+
+    @MainActor
+    func testTokenRemovedClearsCards() async {
+        let source = FakeSource([.stream(status("a"), [], end: APIError.notConfigured)])
+        let first = FirstOnly()
+        let store = LiveStore(makeSource: { first.take() ? source : nil },
+                              sleep: { _ in XCTFail("must not retry") })
+        await store.run()
+        XCTAssertEqual(store.status?.build, "a")  // other stops keep the last cards
+        await store.run()  // second start: no token in the Keychain any more
+        XCTAssertEqual(store.connection, .noToken)
+        XCTAssertNil(store.status)
     }
 
     @MainActor
