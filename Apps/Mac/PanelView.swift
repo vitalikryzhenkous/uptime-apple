@@ -1,7 +1,7 @@
 import SwiftUI
 import UptimeKit
 
-/// The menu-bar panel, design "A on Mac": Buddy, plan limits, sessions (who needs you first), machine and weather.
+/// The menu-bar panel, design "A on Mac": Buddy, machine and weather, plan limits, sessions (who needs you first).
 struct PanelView: View {
     @Environment(LiveStore.self) private var store
     @Environment(JumpRequest.self) private var jump
@@ -20,6 +20,8 @@ struct PanelView: View {
             VStack(alignment: .leading, spacing: 10) {
                 header(t, s)
                 if let st = store.status {
+                    // at the top: a long list of cards can't push it off the bottom of the screen
+                    machineLine(t, s, offline: offline)
                     if let lim = st.claude?.limits, lim.h5 != nil || lim.d7 != nil {
                         LimitsCard(limits: lim, now: now, t: t, s: s)
                     }
@@ -28,7 +30,6 @@ struct PanelView: View {
                     // nothing on screen yet: the connection state is the content
                     ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t)
                 }
-                footer(t, s, offline: offline && store.status != nil)
             }
         }
         .padding(14)
@@ -119,8 +120,9 @@ struct PanelView: View {
     /// One fixed line: the M920q (CPU and RAM as mini meters, temperature when the server has a sensor) and the weather
     /// with its icon. "Updated hh:mm" is the machine block's tooltip; after the grace period the connection problem
     /// takes the same slot with a retry button. Nothing is inserted or removed, so the window does not jump.
+    /// Under the header, never compressed when the panel is taller than the screen.
     @ViewBuilder
-    private func footer(_ t: Theme, _ s: Strings, offline: Bool) -> some View {
+    private func machineLine(_ t: Theme, _ s: Strings, offline: Bool) -> some View {
         let st = store.status
         let updated = store.lastUpdate.map {
             s.tr("app.conn.live", ["time": .string($0.formatted(date: .omitted, time: .shortened))],
@@ -167,6 +169,7 @@ struct PanelView: View {
         .font(.system(size: 12))
         .foregroundStyle(t.g2)
         .lineLimit(1)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -859,7 +862,7 @@ struct ConnectionLine: View {
     let lastUpdate: Date?
     let strings: Strings
     let theme: Theme
-    /// In the footer: only the reason ("connection lost"), the rest is implied by the warning colour.
+    /// In the machine line: only the reason ("connection lost"), the rest is implied by the warning colour.
     var compact = false
 
     var body: some View {
