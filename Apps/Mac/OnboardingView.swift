@@ -18,7 +18,6 @@ struct OnboardingView: View {
     @State private var code: String
     @State private var busy = false
     @State private var problem: String?
-    @State private var copied = false
     @State private var sshUser = Prefs.sshUser
     @State private var notifyAsked = false
 
@@ -84,24 +83,10 @@ struct OnboardingView: View {
                     .font(.system(.caption, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 110)
-                    .onChange(of: sshUser) { _, new in Prefs.sshUser = new; copied = false }
+                    .onChange(of: sshUser) { _, new in Prefs.sshUser = new }
                 Text("@\(Prefs.validURL(address)?.host ?? "…")").font(.system(.caption, design: .monospaced))
             }
-            HStack {
-                Text(command)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(2)
-                Spacer()
-                Button(copied ? s.tr("app.onb.copied", fallback: "Copied") : s.tr("app.onb.copy", fallback: "Copy")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(command, forType: .string)
-                    copied = true
-                }
-                .disabled(command.isEmpty)
-            }
-            .padding(8)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            CopyLine(text: command, strings: s)
             TextField("123 456", text: $code)
                 .font(.system(.title2, design: .monospaced))
                 .textFieldStyle(.roundedBorder)

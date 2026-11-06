@@ -8,6 +8,20 @@ struct PanelView: View {
     @Environment(AssetStore.self) private var assets
     @Environment(\.colorScheme) private var scheme
     @State private var expanded: Set<String> = []
+    /// The pairing wizard: after a revoke (401) or without a token the panel offers to pair again.
+    let pair: @MainActor () -> Void
+
+    /// Token gone or revoked: the ready command to paste into Terminal, and the wizard to type the code into
+    /// (seen live, 2026-11-05: "check Settings" alone left no way to copy the command).
+    private func repair(_ s: Strings) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(s.tr("app.conn.repair", fallback: "Pair this Mac again: run this in Terminal, then type the code."))
+                .font(.system(size: 12))
+                .fixedSize(horizontal: false, vertical: true)
+            CopyLine(text: Pairing.command(baseURL: Prefs.baseURL, user: Prefs.sshUser), strings: s)
+            Button(s.tr("app.set.pair", fallback: "Pair with a code…"), action: pair)
+        }
+    }
 
     var body: some View {
         let t = Theme.of(scheme)
@@ -29,6 +43,9 @@ struct PanelView: View {
                 } else {
                     // nothing on screen yet: the connection state is the content
                     ConnectionLine(connection: store.connection, lastUpdate: store.lastUpdate, strings: s, theme: t)
+                    if store.connection == .noToken || store.connection == .unauthorized {
+                        repair(s)
+                    }
                 }
             }
         }
